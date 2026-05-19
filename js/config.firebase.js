@@ -4,12 +4,14 @@
  */
 window.JM_CONFIG = {
   firebaseConfig: {
-    apiKey: "PREENCHA_API_KEY",
-    authDomain: "PREENCHA.firebaseapp.com",
-    projectId: "PREENCHA_PROJECT_ID",
-    storageBucket: "PREENCHA.firebasestorage.app",
-    messagingSenderId: "PREENCHA_SENDER_ID",
-    appId: "PREENCHA_APP_ID"
+    apiKey: "AIzaSyDabz--MxYrnUGo65G3nGKE6h_Tr6h112s",
+    authDomain: "frvalencio.firebaseapp.com",
+    projectId: "frvalencio",
+    storageBucket: "frvalencio.firebasestorage.app",
+    messagingSenderId: "1008400858370",
+    appId: "1:1008400858370:web:17019357ea499ecd87561b"
+  };
+  
   },
   empresa: {
     nome: "JM Guinchos",
