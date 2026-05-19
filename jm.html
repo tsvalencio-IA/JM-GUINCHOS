@@ -26,8 +26,6 @@
       <input id="loginPass" type="password" autocomplete="current-password" required>
       <div style="height:14px"></div>
       <button class="btn primary" style="width:100%" type="submit">Entrar</button>
-      <div style="height:8px"></div>
-      <button id="firstAccessBtn" class="btn" style="width:100%" type="button">Criar primeiro acesso gestor</button>
       <p id="loginError" class="danger small" style="min-height:18px;margin-top:12px"></p>
     </form>
   </section>
@@ -65,10 +63,6 @@
             <h2 id="pageTitle" style="margin:0">Dashboard</h2>
             <div class="muted small" id="trackerStatus">Tracker aguardando configuração no superadmin</div>
           </div>
-        </div>
-        <div class="actions">
-          <button id="syncTrackerBtn" class="btn primary">Sincronizar Tracker</button>
-          <button id="seedBtn" class="btn">Criar base JM</button>
         </div>
       </header>
 
@@ -162,7 +156,6 @@
                 <div><label>Placa</label><input id="vehiclePlate" maxlength="8" required></div>
                 <div><label>Apelido</label><input id="vehicleAlias"></div>
                 <div><label>Tipo</label><input id="vehicleType"></div>
-                <div><label>Tracker ID</label><input id="vehicleTracker"></div>
                 <div><label>Status</label><select id="vehicleStatus"><option>Disponível</option><option>Em atendimento</option><option>Manutenção</option><option>Indisponível</option></select></div>
                 <button class="btn primary wide" type="submit">Salvar veículo</button>
               </form>
@@ -182,9 +175,9 @@
                 <div class="wide"><label>Nome</label><input id="teamName" required></div>
                 <div class="wide"><label>E-mail</label><input id="teamEmail" type="email" required></div>
                 <div><label>Senha inicial</label><input id="teamPass" type="password" autocomplete="new-password" placeholder="mínimo 6 caracteres"></div>
-                <div><label>Perfil</label><select id="teamRole"><option value="driver">Motorista</option><option value="admin">Gestor</option><option value="finance">Financeiro</option></select></div>
+                <input id="teamRole" type="hidden" value="driver">
                 <div><label>Ativo</label><select id="teamActive"><option value="true">Sim</option><option value="false">Não</option></select></div>
-                <button class="btn primary wide" type="submit">Criar/atualizar acesso</button>
+                <button class="btn primary wide" type="submit">Criar/atualizar motorista</button>
               </form>
             </div>
             <div class="panel col-8">

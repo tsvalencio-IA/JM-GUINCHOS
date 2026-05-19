@@ -18,14 +18,8 @@
   };
 
   const unsubscribers = [];
-  let trackerTimer = null;
-
   function isAdmin() {
     return state.profile && ["admin", "finance"].includes(state.profile.role);
-  }
-
-  function activeTrackerConfig() {
-    return Object.assign({}, cfg.tracker || {}, state.settings.tracker || {});
   }
 
   function activeCloudinaryConfig() {
@@ -104,8 +98,6 @@
 
   function stopListeners() {
     unsubscribers.splice(0).forEach((fn) => fn());
-    if (trackerTimer) clearInterval(trackerTimer);
-    trackerTimer = null;
   }
 
   function applyRoleVisibility() {
@@ -135,7 +127,6 @@
     $("userBox").innerHTML = `<b>${esc(state.profile.nome || user.email)}</b><br>${esc(user.email)}<br><span class="badge info">${esc(state.profile.role)}</span>`;
     applyRoleVisibility();
     startListeners();
-    startTrackerPolling();
   });
 
   $("loginForm").onsubmit = async (e) => {
@@ -151,7 +142,7 @@
   function friendlyAuthError(err) {
     const code = err && err.code || "";
     if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
-      return "Usuário ou senha inválidos. Se ainda não criou o usuário no Firebase Auth, use Criar primeiro acesso gestor.";
+      return "Usuário ou senha inválidos. O acesso de gestor deve ser criado no superadmin.";
     }
     if (code === "auth/operation-not-allowed") {
       return "Ative o provedor E-mail/Senha no Firebase Authentication.";
@@ -161,88 +152,6 @@
     }
     return "Acesso negado: " + (err && err.message || "falha de autenticação");
   }
-
-  async function createFirstAdminAccess() {
-    const email = $("loginEmail").value.trim().toLowerCase();
-    const pass = $("loginPass").value;
-    $("loginError").textContent = "";
-    if (!email || !pass) {
-      $("loginError").textContent = "Informe e-mail e senha antes de criar o primeiro acesso.";
-      return;
-    }
-    if (!emailIsAdmin(email)) {
-      $("loginError").textContent = "Este e-mail não está liberado como gestor em js/config.firebase.js.";
-      return;
-    }
-    if (pass.length < 6) {
-      $("loginError").textContent = "A senha precisa ter pelo menos 6 caracteres.";
-      return;
-    }
-    try {
-      await auth.createUserWithEmailAndPassword(email, pass);
-      toast("Primeiro acesso criado. Entrando no sistema.", "ok");
-    } catch (err) {
-      if (err && err.code === "auth/email-already-in-use") {
-        $("loginError").textContent = "Este usuário já existe no Firebase Auth. Use Entrar ou redefina a senha no Firebase.";
-        return;
-      }
-      $("loginError").textContent = friendlyAuthError(err);
-    }
-  }
-
-  $("firstAccessBtn").onclick = createFirstAdminAccess;
-
-  function startTrackerPolling() {
-    const ms = Math.max(15000, Number(activeTrackerConfig().pollingMs || 30000));
-    if (trackerTimer) clearInterval(trackerTimer);
-    trackerTimer = setInterval(syncTracker, ms);
-    syncTracker().catch(() => {});
-  }
-
-  async function syncTracker() {
-    try {
-      const trackerConfig = activeTrackerConfig();
-      if (!trackerConfig.endpoint || !trackerConfig.token) {
-        $("trackerStatus").textContent = "Tracker ainda não configurado no superadmin.";
-        toast("Configure endpoint e token no superadmin para exibir posições reais.", "info");
-        return;
-      }
-      $("trackerStatus").textContent = "Sincronizando Tracker...";
-      const positions = await window.JM.tracker.syncTrackerToFirestore(trackerConfig, db, state.vehicles);
-      $("trackerStatus").textContent = `${positions.length} posição(ões) sincronizada(s) do Tracker`;
-      toast("Tracker sincronizado.", "ok");
-    } catch (err) {
-      console.error(err);
-      $("trackerStatus").textContent = "Tracker indisponível: " + err.message;
-      toast("Tracker indisponível: " + err.message, "danger");
-    }
-  }
-
-  $("syncTrackerBtn").onclick = () => syncTracker();
-
-  async function seedBase() {
-    if (!isAdmin()) return toast("Somente gestor pode criar a base.", "danger");
-    const batch = db.batch();
-    const now = new Date().toISOString();
-    Object.entries((cfg.tracker && cfg.tracker.vehicles) || {}).forEach(([id, vehicle], index) => {
-      batch.set(db.collection("vehicles").doc(id), {
-        placa: vehicle.placa || id,
-        apelido: vehicle.apelido || "",
-        tipo: vehicle.tipo || "",
-        trackerId: vehicle.trackerId || id,
-        status: "Disponível",
-        updatedAt: now
-      }, { merge: true });
-    });
-    batch.set(db.collection("settings").doc("integrations"), {
-      tracker: activeTrackerConfig(),
-      cloudinary: activeCloudinaryConfig(),
-      updatedAt: now
-    }, { merge: true });
-    await batch.commit();
-    toast("Base JM criada/atualizada com FHA4B30 e DAJ6J95.", "ok");
-  }
-  $("seedBtn").onclick = seedBase;
 
   function renderAll() {
     renderSelects();
@@ -398,7 +307,6 @@
       placa: id,
       apelido: $("vehicleAlias").value.trim(),
       tipo: $("vehicleType").value.trim(),
-      trackerId: $("vehicleTracker").value.trim() || id,
       status: $("vehicleStatus").value,
       updatedAt: new Date().toISOString()
     }, { merge: true });
@@ -570,6 +478,6 @@
   }
 
   window.JM = window.JM || {};
-  window.JM.app = { setCallStatus, approveExpense, rejectExpense, syncTracker, state };
+  window.JM.app = { setCallStatus, approveExpense, rejectExpense, state };
   boot();
 }());

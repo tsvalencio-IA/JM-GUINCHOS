@@ -5,6 +5,7 @@
   const { auth, secondaryAuth, db, ts, emailIsSuperAdmin } = window.JM.firebase;
   const cfg = window.JM_CONFIG || {};
   let settings = {};
+  let vehicles = {};
 
   function friendlyAuthError(err) {
     const code = err && err.code || "";
@@ -72,6 +73,8 @@
   };
 
   $("superLogoutBtn").onclick = () => auth.signOut();
+  $("superSeedBtn").onclick = () => seedBase();
+  $("superSyncTrackerBtn").onclick = () => syncTracker();
 
   function bindSettings() {
     db.collection("settings").doc("integrations").onSnapshot((snap) => {
@@ -83,6 +86,10 @@
       $("companyName").value = company.nome || "";
       $("companyCity").value = company.cidadeBase || "";
       $("companyPhone").value = company.telefoneOperacional || "";
+    });
+    db.collection("vehicles").onSnapshot((snap) => {
+      vehicles = {};
+      snap.forEach((doc) => { vehicles[doc.id] = { id: doc.id, ...doc.data() }; });
     });
   }
 
@@ -106,6 +113,43 @@
     base.FHA4B30 = Object.assign({ placa: "FHA4B30", apelido: "Guincho", tipo: "Guincho plataforma" }, base.FHA4B30 || {}, { trackerId: $("trackerFha").value.trim() || "FHA4B30" });
     base.DAJ6J95 = Object.assign({ placa: "DAJ6J95", apelido: "Munk", tipo: "Caminhao munck" }, base.DAJ6J95 || {}, { trackerId: $("trackerDaj").value.trim() || "DAJ6J95" });
     return base;
+  }
+
+  async function seedBase() {
+    const batch = db.batch();
+    const now = new Date().toISOString();
+    Object.entries(currentVehicles()).forEach(([id, vehicle]) => {
+      batch.set(db.collection("vehicles").doc(id), {
+        placa: vehicle.placa || id,
+        apelido: vehicle.apelido || "",
+        tipo: vehicle.tipo || "",
+        trackerId: vehicle.trackerId || id,
+        status: "Disponível",
+        updatedAt: now
+      }, { merge: true });
+    });
+    batch.set(db.collection("settings").doc("integrations"), {
+      tracker: Object.assign({}, cfg.tracker || {}, settings.tracker || {}, { vehicles: currentVehicles() }),
+      cloudinary: Object.assign({}, cfg.cloudinary || {}, settings.cloudinary || {}),
+      updatedAt: now
+    }, { merge: true });
+    await batch.commit();
+    toast("Base JM criada/atualizada com FHA4B30 e DAJ6J95.", "ok");
+  }
+
+  async function syncTracker() {
+    const tracker = Object.assign({}, cfg.tracker || {}, settings.tracker || {}, { vehicles: currentVehicles() });
+    if (!tracker.endpoint || !tracker.token) {
+      toast("Configure endpoint e token do Tracker antes de sincronizar.", "danger");
+      return;
+    }
+    try {
+      const positions = await window.JM.tracker.syncTrackerToFirestore(tracker, db, vehicles);
+      toast(`${positions.length} posição(ões) sincronizada(s) do Tracker.`, "ok");
+    } catch (err) {
+      console.error(err);
+      toast("Tracker indisponível: " + (err && err.message || err), "danger");
+    }
   }
 
   $("companyForm").onsubmit = async (e) => {

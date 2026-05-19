@@ -31,7 +31,7 @@ Projeto separado para operação de guinchos com Firebase Auth, Firestore, PWA, 
    - `tracker.vehicles.FHA4B30.trackerId`
    - `tracker.vehicles.DAJ6J95.trackerId`
 6. Crie o primeiro usuário no Firebase Auth usando o e-mail cadastrado em `auth.adminEmails`.
-7. Abra o sistema, faça login e clique em `Criar base JM`.
+7. Abra `superadmin.html`, faça login como superadmin e clique em `Criar base JM`.
 
 ## Integração Tracker
 

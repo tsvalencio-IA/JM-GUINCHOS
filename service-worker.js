@@ -1,4 +1,4 @@
-const CACHE_NAME = "jm-guinchos-v5";
+const CACHE_NAME = "jm-guinchos-v6";
 const ASSETS = [
   "./",
   "./index.html",

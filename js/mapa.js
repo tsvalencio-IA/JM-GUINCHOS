@@ -51,7 +51,7 @@
       container.innerHTML = `<div style="height:100%;display:grid;place-items:center;padding:24px;text-align:center;background:#07111f">
         <div>
           <h3>Tracker aguardando configuração</h3>
-          <p class="muted small">Configure endpoint, token e IDs dos rastreadores no <b>superadmin.html</b>. Depois clique em <b>Sincronizar Tracker</b> no jm.html.</p>
+          <p class="muted small">Configure endpoint, token e IDs dos rastreadores no <b>superadmin.html</b>. Depois clique em <b>Sincronizar Tracker</b> no superadmin.html.</p>
         </div>
       </div>`;
       return;
