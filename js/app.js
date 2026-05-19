@@ -2,7 +2,7 @@
   "use strict";
 
   const { $, $all, esc, money, parseMoney, dateTime, todayInput, plateKey, uidSafe, coords, callRoutePoints, routeKm, toast, statusClass } = window.JM.utils;
-  const { auth, db, ts, arrayUnion, emailIsAdmin } = window.JM.firebase;
+  const { auth, secondaryAuth, db, ts, arrayUnion, emailIsAdmin } = window.JM.firebase;
   const cfg = window.JM_CONFIG || {};
   const SYSTEM_SIGNATURE = "Powered by thIAguinho Soluções Digitais";
 
@@ -42,8 +42,7 @@
       motorista: "Painel motorista",
       financeiro: "Financeiro",
       frota: "Frota",
-      equipe: "Equipe",
-      configuracoes: "Configurações"
+      equipe: "Equipe"
     };
     $("pageTitle").textContent = titles[name] || name;
     document.body.classList.remove("menu-open");
@@ -98,7 +97,6 @@
     ["vehicles", "calls", "users", "expenses", "transactions"].forEach((name) => listenCollection(name, name));
     const settingsUnsub = db.collection("settings").doc("integrations").onSnapshot((snap) => {
       state.settings = snap.exists ? snap.data() : {};
-      renderSettings();
       renderAll();
     });
     unsubscribers.push(settingsUnsub);
@@ -112,7 +110,7 @@
 
   function applyRoleVisibility() {
     const allowed = isAdmin();
-    ["financeiro", "frota", "equipe", "configuracoes"].forEach((view) => {
+    ["financeiro", "frota", "equipe"].forEach((view) => {
       const btn = document.querySelector(`#navButtons button[data-view="${view}"]`);
       if (btn) btn.classList.toggle("hidden", !allowed);
     });
@@ -130,6 +128,10 @@
     $("loginView").classList.add("hidden");
     $("appView").classList.remove("hidden");
     state.profile = await ensureProfile(user);
+    if (!["admin", "finance"].includes(state.profile.role)) {
+      window.location.href = "motorista.html";
+      return;
+    }
     $("userBox").innerHTML = `<b>${esc(state.profile.nome || user.email)}</b><br>${esc(user.email)}<br><span class="badge info">${esc(state.profile.role)}</span>`;
     applyRoleVisibility();
     startListeners();
@@ -199,8 +201,14 @@
 
   async function syncTracker() {
     try {
+      const trackerConfig = activeTrackerConfig();
+      if (!trackerConfig.endpoint || !trackerConfig.token) {
+        $("trackerStatus").textContent = "Tracker ainda não configurado no superadmin.";
+        toast("Configure endpoint e token no superadmin para exibir posições reais.", "info");
+        return;
+      }
       $("trackerStatus").textContent = "Sincronizando Tracker...";
-      const positions = await window.JM.tracker.syncTrackerToFirestore(activeTrackerConfig(), db, state.vehicles);
+      const positions = await window.JM.tracker.syncTrackerToFirestore(trackerConfig, db, state.vehicles);
       $("trackerStatus").textContent = `${positions.length} posição(ões) sincronizada(s) do Tracker`;
       toast("Tracker sincronizado.", "ok");
     } catch (err) {
@@ -223,7 +231,6 @@
         tipo: vehicle.tipo || "",
         trackerId: vehicle.trackerId || id,
         status: "Disponível",
-        location: index === 0 ? { lat: -21.1774, lng: -47.8103 } : { lat: -21.1807, lng: -47.7982 },
         updatedAt: now
       }, { merge: true });
     });
@@ -243,7 +250,7 @@
     renderCalls();
     renderVehicles();
     renderTeam();
-    renderDriverPanel();
+    if ($("driverCalls")) renderDriverPanel();
     renderFinance();
     refreshMaps();
   }
@@ -252,9 +259,9 @@
     const vehicleOptions = Object.values(state.vehicles).map((v) => `<option value="${esc(v.id)}">${esc(v.placa || v.id)} - ${esc(v.apelido || v.tipo || "")}</option>`).join("");
     ["callVehicle", "expenseVehicle"].forEach((id) => { if ($(id)) $(id).innerHTML = `<option value="">Selecione</option>${vehicleOptions}`; });
     const drivers = Object.values(state.users).filter((u) => u.active !== false && ["driver", "admin"].includes(u.role));
-    $("callDriver").innerHTML = `<option value="">Selecione</option>` + drivers.map((u) => `<option value="${esc(u.id)}">${esc(u.nome || u.email)}</option>`).join("");
+    if ($("callDriver")) $("callDriver").innerHTML = `<option value="">Selecione</option>` + drivers.map((u) => `<option value="${esc(u.id)}">${esc(u.nome || u.email)}</option>`).join("");
     const myCalls = Object.values(state.calls).filter((c) => c.driverId === state.user?.uid && !["Finalizado", "Cancelado"].includes(c.status));
-    $("expenseCall").innerHTML = `<option value="">Sem chamado</option>` + myCalls.map((c) => `<option value="${esc(c.id)}">${esc(c.protocolo || c.cliente)}</option>`).join("");
+    if ($("expenseCall")) $("expenseCall").innerHTML = `<option value="">Sem chamado</option>` + myCalls.map((c) => `<option value="${esc(c.id)}">${esc(c.protocolo || c.cliente)}</option>`).join("");
   }
 
   function renderDashboard() {
@@ -409,11 +416,29 @@
   $("teamForm").onsubmit = async (e) => {
     e.preventDefault();
     if (!isAdmin()) return toast("Somente gestor pode editar equipe.", "danger");
-    const id = $("teamUid").value.trim();
+    const email = $("teamEmail").value.trim().toLowerCase();
+    const pass = $("teamPass") ? $("teamPass").value : "";
+    let id = "";
+    const existing = Object.values(state.users).find((u) => String(u.email || "").toLowerCase() === email);
+    if (existing) {
+      id = existing.id;
+    } else {
+      if (!pass || pass.length < 6) return toast("Informe uma senha inicial com pelo menos 6 caracteres para criar o motorista no Auth.", "danger");
+      try {
+        const cred = await secondaryAuth.createUserWithEmailAndPassword(email, pass);
+        id = cred.user.uid;
+        await secondaryAuth.signOut().catch(() => {});
+      } catch (err) {
+        if (err && err.code === "auth/email-already-in-use") {
+          return toast("Este e-mail já existe no Firebase Auth, mas ainda não há cadastro em Equipe. Cadastre manualmente pelo UID ou redefina o usuário no Firebase.", "danger");
+        }
+        return toast(friendlyAuthError(err), "danger");
+      }
+    }
     await db.collection("users").doc(id).set({
       uid: id,
       nome: $("teamName").value.trim(),
-      email: $("teamEmail").value.trim(),
+      email,
       role: $("teamRole").value,
       active: $("teamActive").value === "true",
       updatedAt: new Date().toISOString()
@@ -453,7 +478,7 @@
     return data.secure_url || "";
   }
 
-  $("expenseForm").onsubmit = async (e) => {
+  if ($("expenseForm")) $("expenseForm").onsubmit = async (e) => {
     e.preventDefault();
     const photo = $("expensePhoto").files && $("expensePhoto").files[0];
     let photoUrl = "";
@@ -530,53 +555,6 @@
     await db.collection("expenses").doc(id).update({ status: "reprovado", rejectedAt: new Date().toISOString(), rejectedBy: state.user.uid });
     toast("Despesa reprovada.", "ok");
   }
-
-  function renderSettings() {
-    const tracker = activeTrackerConfig();
-    const cloud = activeCloudinaryConfig();
-    $("setPlatform").value = tracker.platformUrl || "";
-    $("setEndpoint").value = tracker.endpoint || "";
-    $("setToken").value = tracker.token || "";
-    $("setHeader").value = tracker.tokenHeader || "Authorization";
-    $("setPrefix").value = tracker.tokenPrefix || "Bearer ";
-    $("cloudName").value = cloud.cloudName || "";
-    $("cloudPreset").value = cloud.uploadPreset || "";
-  }
-
-  $("settingsForm").onsubmit = async (e) => {
-    e.preventDefault();
-    if (!isAdmin()) return toast("Somente gestor pode alterar integrações.", "danger");
-    await db.collection("settings").doc("integrations").set({
-      tracker: {
-        platformUrl: $("setPlatform").value.trim(),
-        endpoint: $("setEndpoint").value.trim(),
-        token: $("setToken").value.trim(),
-        tokenHeader: $("setHeader").value.trim() || "Authorization",
-        tokenPrefix: $("setPrefix").value,
-        pollingMs: Number(activeTrackerConfig().pollingMs || 30000),
-        vehicles: activeTrackerConfig().vehicles || {}
-      },
-      updatedAt: new Date().toISOString(),
-      updatedBy: state.user.uid
-    }, { merge: true });
-    toast("Tracker salvo.", "ok");
-    startTrackerPolling();
-  };
-
-  $("cloudForm").onsubmit = async (e) => {
-    e.preventDefault();
-    if (!isAdmin()) return toast("Somente gestor pode alterar Cloudinary.", "danger");
-    await db.collection("settings").doc("integrations").set({
-      cloudinary: {
-        cloudName: $("cloudName").value.trim(),
-        uploadPreset: $("cloudPreset").value.trim(),
-        folder: "jm-guinchos"
-      },
-      updatedAt: new Date().toISOString(),
-      updatedBy: state.user.uid
-    }, { merge: true });
-    toast("Cloudinary salvo.", "ok");
-  };
 
   function refreshMaps() {
     const active = document.querySelector(".view.active");

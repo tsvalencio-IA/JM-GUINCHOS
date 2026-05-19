@@ -51,7 +51,7 @@
   }
 
   async function fetchTrackerPositions(config) {
-    if (!config || !config.endpoint || !config.token) return demoPositions(config || {});
+    if (!config || !config.endpoint || !config.token) return [];
     const headers = { "Accept": "application/json" };
     headers[config.tokenHeader || "Authorization"] = String(config.tokenPrefix || "Bearer ") + config.token;
     headers["X-Tracker-Token"] = config.token;

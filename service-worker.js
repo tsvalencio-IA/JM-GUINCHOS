@@ -1,7 +1,10 @@
-const CACHE_NAME = "jm-guinchos-v4";
+const CACHE_NAME = "jm-guinchos-v5";
 const ASSETS = [
   "./",
   "./index.html",
+  "./jm.html",
+  "./motorista.html",
+  "./superadmin.html",
   "./manifest.json",
   "./css/style.css",
   "./js/config.firebase.js",
@@ -10,6 +13,8 @@ const ASSETS = [
   "./js/tracker.js",
   "./js/mapa.js",
   "./js/app.js",
+  "./js/motorista.js",
+  "./js/superadmin.js",
   "./assets/icon.svg"
 ];
 

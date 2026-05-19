@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07111f">
+  <title>JM Guinchos - Gestor</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <section id="loginView" class="login">
+    <form id="loginForm" class="login-card">
+      <div class="brand-row">
+        <div class="brand-mark">JM</div>
+        <div>
+          <h1>JM Guinchos</h1>
+          <p class="muted small">Painel gestor da operação</p>
+        </div>
+      </div>
+      <label for="loginEmail">E-mail gestor</label>
+      <input id="loginEmail" type="email" autocomplete="username" required>
+      <div style="height:10px"></div>
+      <label for="loginPass">Senha</label>
+      <input id="loginPass" type="password" autocomplete="current-password" required>
+      <div style="height:14px"></div>
+      <button class="btn primary" style="width:100%" type="submit">Entrar</button>
+      <div style="height:8px"></div>
+      <button id="firstAccessBtn" class="btn" style="width:100%" type="button">Criar primeiro acesso gestor</button>
+      <p id="loginError" class="danger small" style="min-height:18px;margin-top:12px"></p>
+    </form>
+  </section>
+
+  <section id="appView" class="app hidden">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <div class="brand-row" style="margin-bottom:0">
+          <div class="brand-mark">JM</div>
+          <div>
+            <div class="sidebar-title">JM GUINCHOS</div>
+            <div class="sidebar-sub">gestão operacional</div>
+          </div>
+        </div>
+      </div>
+      <nav class="nav" id="navButtons">
+        <button data-view="dashboard" class="active">Dashboard</button>
+        <button data-view="chamados">Chamados</button>
+        <button data-view="mapa">Mapa / Tracker</button>
+        <button data-view="financeiro">Financeiro</button>
+        <button data-view="frota">Frota</button>
+        <button data-view="equipe">Equipe</button>
+      </nav>
+      <div class="sidebar-foot">
+        <div id="userBox" class="small muted"></div>
+        <button id="logoutBtn" class="btn danger" style="width:100%;margin-top:10px">Sair</button>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div class="actions">
+          <button class="btn mobile-top" id="menuBtn">Menu</button>
+          <div>
+            <h2 id="pageTitle" style="margin:0">Dashboard</h2>
+            <div class="muted small" id="trackerStatus">Tracker aguardando configuração no superadmin</div>
+          </div>
+        </div>
+        <div class="actions">
+          <button id="syncTrackerBtn" class="btn primary">Sincronizar Tracker</button>
+          <button id="seedBtn" class="btn">Criar base JM</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section id="view-dashboard" class="view active">
+          <div class="grid">
+            <div class="card kpi col-3"><span>Chamados ativos</span><strong id="kpiActiveCalls">0</strong></div>
+            <div class="card kpi col-3"><span>Receita do mês</span><strong id="kpiRevenue">R$ 0,00</strong></div>
+            <div class="card kpi col-3"><span>Despesas pendentes</span><strong id="kpiExpenses">R$ 0,00</strong></div>
+            <div class="card kpi col-3"><span>Frota online</span><strong id="kpiOnline">0</strong></div>
+            <div class="panel col-7">
+              <h2>Mapa operacional</h2>
+              <div id="dashboardMap" class="map"></div>
+            </div>
+            <div class="panel col-5">
+              <h2>Últimos eventos</h2>
+              <div id="timelineBox" class="timeline"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-chamados" class="view">
+          <div class="grid">
+            <div class="panel col-5">
+              <h2>Novo chamado</h2>
+              <form id="callForm" class="form-grid">
+                <div><label>Cliente</label><input id="callClient" required></div>
+                <div><label>WhatsApp</label><input id="callPhone" inputmode="tel"></div>
+                <div><label>Serviço</label><select id="callType"><option>Guincho</option><option>Munck</option><option>Socorro</option><option>Remoção</option></select></div>
+                <div><label>Valor previsto</label><input id="callPrice" inputmode="decimal" placeholder="0,00"></div>
+                <div><label>Veículo</label><select id="callVehicle"></select></div>
+                <div><label>Motorista</label><select id="callDriver"></select></div>
+                <div class="wide"><label>Origem / local do veículo</label><input id="callOriginLabel" placeholder="Endereço ou referência"></div>
+                <div><label>Origem lat</label><input id="callOriginLat" inputmode="decimal" placeholder="-21.1774"></div>
+                <div><label>Origem lng</label><input id="callOriginLng" inputmode="decimal" placeholder="-47.8103"></div>
+                <div class="wide"><label>Destino</label><input id="callDestLabel" placeholder="Destino, pátio, oficina ou cliente"></div>
+                <div><label>Destino lat</label><input id="callDestLat" inputmode="decimal"></div>
+                <div><label>Destino lng</label><input id="callDestLng" inputmode="decimal"></div>
+                <div class="wide"><label>Observações</label><textarea id="callNotes"></textarea></div>
+                <button class="btn primary wide" type="submit">Registrar chamado</button>
+              </form>
+            </div>
+            <div class="panel col-7">
+              <h2>Chamados em tempo real</h2>
+              <div id="callsTable" class="table-wrap"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-mapa" class="view">
+          <div class="grid">
+            <div class="panel col-12">
+              <h2>Rastreamento e rotas</h2>
+              <p class="muted small">O mapa aparece com posições reais quando o superadmin configurar endpoint, token e IDs dos rastreadores.</p>
+              <div id="fleetMap" class="map"></div>
+            </div>
+            <div class="panel col-12">
+              <h2>Frota rastreada</h2>
+              <div id="vehicleCards" class="grid"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-financeiro" class="view">
+          <div class="grid">
+            <div class="panel col-4">
+              <h2>Lançamento financeiro</h2>
+              <form id="financeForm" class="form-grid">
+                <div><label>Tipo</label><select id="finType"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div>
+                <div><label>Data</label><input id="finDate" type="date"></div>
+                <div class="wide"><label>Descrição</label><input id="finDesc" required></div>
+                <div><label>Valor</label><input id="finAmount" inputmode="decimal" required></div>
+                <div><label>Status</label><select id="finStatus"><option>Recebido</option><option>A receber</option><option>Pago</option><option>Pendente</option></select></div>
+                <button class="btn primary wide" type="submit">Salvar financeiro</button>
+              </form>
+            </div>
+            <div class="panel col-8">
+              <h2>Financeiro e despesas</h2>
+              <div id="financeTable" class="table-wrap"></div>
+              <h2 style="margin-top:18px">Despesas de motorista para aprovar</h2>
+              <div id="expenseApproval" class="table-wrap"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-frota" class="view">
+          <div class="grid">
+            <div class="panel col-4">
+              <h2>Veículo</h2>
+              <form id="vehicleForm" class="form-grid">
+                <div><label>Placa</label><input id="vehiclePlate" maxlength="8" required></div>
+                <div><label>Apelido</label><input id="vehicleAlias"></div>
+                <div><label>Tipo</label><input id="vehicleType"></div>
+                <div><label>Tracker ID</label><input id="vehicleTracker"></div>
+                <div><label>Status</label><select id="vehicleStatus"><option>Disponível</option><option>Em atendimento</option><option>Manutenção</option><option>Indisponível</option></select></div>
+                <button class="btn primary wide" type="submit">Salvar veículo</button>
+              </form>
+            </div>
+            <div class="panel col-8">
+              <h2>Frota JM</h2>
+              <div id="fleetTable" class="table-wrap"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-equipe" class="view">
+          <div class="grid">
+            <div class="panel col-4">
+              <h2>Cadastrar motorista</h2>
+              <form id="teamForm" class="form-grid">
+                <div class="wide"><label>Nome</label><input id="teamName" required></div>
+                <div class="wide"><label>E-mail</label><input id="teamEmail" type="email" required></div>
+                <div><label>Senha inicial</label><input id="teamPass" type="password" autocomplete="new-password" placeholder="mínimo 6 caracteres"></div>
+                <div><label>Perfil</label><select id="teamRole"><option value="driver">Motorista</option><option value="admin">Gestor</option><option value="finance">Financeiro</option></select></div>
+                <div><label>Ativo</label><select id="teamActive"><option value="true">Sim</option><option value="false">Não</option></select></div>
+                <button class="btn primary wide" type="submit">Criar/atualizar acesso</button>
+              </form>
+            </div>
+            <div class="panel col-8">
+              <h2>Equipe</h2>
+              <div id="teamTable" class="table-wrap"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </section>
+
+  <footer class="signature-footer">Powered by thIAguinho Soluções Digitais</footer>
+  <div id="toast" class="toast"></div>
+
+  <script src="js/config.firebase.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/tracker.js"></script>
+  <script src="js/mapa.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

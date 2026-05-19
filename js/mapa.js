@@ -35,7 +35,7 @@
       return `<g><circle cx="${x}" cy="${y}" r="18" fill="#38bdf8"/><text x="${x + 28}" y="${y + 5}" fill="#e2e8f0" font-size="14" font-weight="700">${esc(v.placa || v.id)}</text></g>`;
     }).join("");
     const callRows = Object.values(calls || {}).slice(0, 6).map((c, i) => `<text x="32" y="${330 + i * 24}" fill="#94a3b8" font-size="13">${esc(c.protocolo || c.cliente || "Chamado")}: ${esc(c.status || "")}</text>`).join("");
-    container.innerHTML = `<svg class="fallback-map" viewBox="0 0 820 520" role="img" aria-label="Mapa operacional em fallback">
+    container.innerHTML = `<svg class="fallback-map" viewBox="0 0 820 520" preserveAspectRatio="none" role="img" aria-label="Mapa operacional em fallback">
       <rect width="820" height="520" fill="#07111f"/>
       <path d="M80 380 C240 120 380 420 680 140" fill="none" stroke="#22c55e" stroke-width="5" stroke-linecap="round"/>
       ${rows}
@@ -48,7 +48,12 @@
     if (!container) return;
     const located = Object.values(vehicles || {}).filter((v) => v.location && Number.isFinite(Number(v.location.lat)) && Number.isFinite(Number(v.location.lng)));
     if (!located.length) {
-      fallbackSvg(container, vehicles, calls);
+      container.innerHTML = `<div style="height:100%;display:grid;place-items:center;padding:24px;text-align:center;background:#07111f">
+        <div>
+          <h3>Tracker aguardando configuração</h3>
+          <p class="muted small">Configure endpoint, token e IDs dos rastreadores no <b>superadmin.html</b>. Depois clique em <b>Sincronizar Tracker</b> no jm.html.</p>
+        </div>
+      </div>`;
       return;
     }
     try {
