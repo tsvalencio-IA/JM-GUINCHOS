@@ -4,20 +4,39 @@ service cloud.firestore {
     function signedIn() {
       return request.auth != null;
     }
+    function email() {
+      return request.auth.token.email;
+    }
+    function bootstrapAdminEmail() {
+      return signedIn() && email() in [
+        'jmguinchos@ts.com',
+        'tsvalencio@gmail.com'
+      ];
+    }
     function profile() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
     function isAdmin() {
-      return signedIn() && profile().active != false && profile().role in ['admin', 'finance'];
+      return signedIn() && profile().active != false && profile().role in ['admin', 'finance', 'superadmin', 'gestor'];
     }
     function isDriver() {
-      return signedIn() && profile().active != false && profile().role in ['driver', 'admin', 'finance'];
+      return signedIn() && profile().active != false && profile().role in ['driver', 'motorista', 'admin', 'finance', 'superadmin', 'gestor'];
+    }
+    function ownAdminRepair(uid) {
+      return signedIn()
+        && request.auth.uid == uid
+        && bootstrapAdminEmail()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == email()
+        && request.resource.data.active == true
+        && request.resource.data.role in ['admin', 'finance'];
     }
 
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
-      allow create: if signedIn() && request.auth.uid == uid;
-      allow update, delete: if isAdmin();
+      allow create: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow update: if isAdmin() || ownAdminRepair(uid);
+      allow delete: if isAdmin();
     }
 
     match /vehicles/{id} {

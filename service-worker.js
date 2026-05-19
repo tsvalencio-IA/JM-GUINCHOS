@@ -1,4 +1,4 @@
-const CACHE_NAME = "jm-guinchos-v7-login-flow";
+const CACHE_NAME = "jm-guinchos-v9-login-definitivo";
 const ASSETS = [
   "./",
   "./index.html",
@@ -19,25 +19,44 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
   self.skipWaiting();
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)).catch(() => null));
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))));
-  self.clients.claim();
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
+
+function isHtmlOrCode(request) {
+  const url = new URL(request.url);
+  return request.mode === "navigate" || /\.(html|js|css|json)$/i.test(url.pathname);
+}
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-  if (event.request.url.includes("/js/config.firebase.js")) {
-    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+
+  if (isHtmlOrCode(event.request)) {
+    event.respondWith(
+      fetch(event.request, { cache: "no-store" })
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => null);
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index.html")))
+    );
     return;
   }
+
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).catch(() => caches.match("./index.html"));
-    })
+    caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
+      const copy = response.clone();
+      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => null);
+      return response;
+    }).catch(() => cached))
   );
 });
