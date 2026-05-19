@@ -10,8 +10,6 @@ window.JM_CONFIG = {
     storageBucket: "frvalencio.firebasestorage.app",
     messagingSenderId: "1008400858370",
     appId: "1:1008400858370:web:17019357ea499ecd87561b"
-  };
-  
   },
   empresa: {
     nome: "JM Guinchos",
