@@ -19,10 +19,10 @@ window.JM_CONFIG = {
   },
   auth: {
     adminEmails: [
-      "jmguinchos@ts.com"
+      "tsvalencio@gmail.com"
     ],
     superadminEmails: [
-      "jmguinchos@ts.com"
+      "tsvalencio@gmail.com"
     ]
   },
   tracker: {
