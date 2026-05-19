@@ -15,17 +15,17 @@ window.JM_CONFIG = {
   },
   empresa: {
     nome: "JM Guinchos",
-    cidadeBase: "Ribeirao Preto/SP",
-    telefoneOperacional: "",
+    cidadeBase: "São José do Rio Preto - SP",
+    telefoneOperacional: "(17) 99651-9832",
     moeda: "BRL"
   },
   auth: {
     adminEmails: [
-      "admin@jmguinchos.com.br"
+      "jmguinchos@ts.com"
     ]
   },
   tracker: {
-    platformUrl: "https://LINK_DA_PLATAFORMA_TRACKER_AQUI",
+    platformUrl: "https://gps2.rafacarrastreadores.com.br",
     endpoint: "",
     token: "",
     tokenHeader: "Authorization",
