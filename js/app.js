@@ -55,10 +55,25 @@
     return `<div class="report-signature">${SYSTEM_SIGNATURE}</div>`;
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // FIX #1: ensureProfile agora auto-corrige o role no Firestore se o email
+  //         estiver em adminEmails mas o documento armazenar role incorreto.
+  // ─────────────────────────────────────────────────────────────────────────────
   async function ensureProfile(user) {
     const ref = db.collection("users").doc(user.uid);
     const snap = await ref.get();
-    if (snap.exists) return { id: user.uid, ...snap.data() };
+
+    if (snap.exists) {
+      const data = snap.data();
+      // Se o email é gestor mas o role está errado (ex: "driver"), corrige no Firestore
+      if (emailIsAdmin(user.email) && !["admin", "finance"].includes(data.role)) {
+        await ref.update({ role: "admin", updatedAt: ts() });
+        return { id: user.uid, ...data, role: "admin" };
+      }
+      return { id: user.uid, ...data };
+    }
+
+    // Documento não existe — cria com role correto
     const role = emailIsAdmin(user.email) ? "admin" : "driver";
     const profile = {
       uid: user.uid,
@@ -109,21 +124,44 @@
     if (!allowed) showView("motorista");
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // FIX #2: onAuthStateChanged nunca redireciona para motorista.html a partir do
+  //         jm.html. Se o usuário não for gestor, faz signOut e exibe erro na
+  //         própria tela de login do painel gestor.
+  // ─────────────────────────────────────────────────────────────────────────────
   auth.onAuthStateChanged(async (user) => {
     stopListeners();
     state.user = user || null;
+
     if (!user) {
       $("loginView").classList.remove("hidden");
       $("appView").classList.add("hidden");
       return;
     }
-    $("loginView").classList.add("hidden");
-    $("appView").classList.remove("hidden");
-    state.profile = await ensureProfile(user);
-    if (!["admin", "finance"].includes(state.profile.role)) {
-      window.location.href = "motorista.html";
+
+    try {
+      state.profile = await ensureProfile(user);
+    } catch (err) {
+      console.error("Erro ao carregar perfil:", err);
+      $("loginError").textContent = "Erro ao verificar perfil. Tente novamente.";
+      await auth.signOut();
       return;
     }
+
+    if (!["admin", "finance"].includes(state.profile.role)) {
+      // Não redireciona — mantém no jm.html com mensagem de acesso negado
+      await auth.signOut();
+      $("loginView").classList.remove("hidden");
+      $("appView").classList.add("hidden");
+      $("loginError").textContent =
+        "Acesso negado. Este painel é exclusivo para gestores. " +
+        "Use o aplicativo de motorista para acessar seus chamados.";
+      return;
+    }
+
+    $("loginView").classList.add("hidden");
+    $("appView").classList.remove("hidden");
+    $("loginError").textContent = "";
     $("userBox").innerHTML = `<b>${esc(state.profile.nome || user.email)}</b><br>${esc(user.email)}<br><span class="badge info">${esc(state.profile.role)}</span>`;
     applyRoleVisibility();
     startListeners();
