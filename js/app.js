@@ -142,9 +142,53 @@
     try {
       await auth.signInWithEmailAndPassword($("loginEmail").value.trim(), $("loginPass").value);
     } catch (err) {
-      $("loginError").textContent = "Acesso negado: " + err.message;
+      $("loginError").textContent = friendlyAuthError(err);
     }
   };
+
+  function friendlyAuthError(err) {
+    const code = err && err.code || "";
+    if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
+      return "Usuário ou senha inválidos. Se ainda não criou o usuário no Firebase Auth, use Criar primeiro acesso gestor.";
+    }
+    if (code === "auth/operation-not-allowed") {
+      return "Ative o provedor E-mail/Senha no Firebase Authentication.";
+    }
+    if (code === "auth/too-many-requests") {
+      return "Muitas tentativas. Aguarde alguns minutos ou redefina a senha no Firebase.";
+    }
+    return "Acesso negado: " + (err && err.message || "falha de autenticação");
+  }
+
+  async function createFirstAdminAccess() {
+    const email = $("loginEmail").value.trim().toLowerCase();
+    const pass = $("loginPass").value;
+    $("loginError").textContent = "";
+    if (!email || !pass) {
+      $("loginError").textContent = "Informe e-mail e senha antes de criar o primeiro acesso.";
+      return;
+    }
+    if (!emailIsAdmin(email)) {
+      $("loginError").textContent = "Este e-mail não está liberado como gestor em js/config.firebase.js.";
+      return;
+    }
+    if (pass.length < 6) {
+      $("loginError").textContent = "A senha precisa ter pelo menos 6 caracteres.";
+      return;
+    }
+    try {
+      await auth.createUserWithEmailAndPassword(email, pass);
+      toast("Primeiro acesso criado. Entrando no sistema.", "ok");
+    } catch (err) {
+      if (err && err.code === "auth/email-already-in-use") {
+        $("loginError").textContent = "Este usuário já existe no Firebase Auth. Use Entrar ou redefina a senha no Firebase.";
+        return;
+      }
+      $("loginError").textContent = friendlyAuthError(err);
+    }
+  }
+
+  $("firstAccessBtn").onclick = createFirstAdminAccess;
 
   function startTrackerPolling() {
     const ms = Math.max(15000, Number(activeTrackerConfig().pollingMs || 30000));

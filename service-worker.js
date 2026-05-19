@@ -1,4 +1,4 @@
-const CACHE_NAME = "jm-guinchos-v2";
+const CACHE_NAME = "jm-guinchos-v4";
 const ASSETS = [
   "./",
   "./index.html",
@@ -25,6 +25,10 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  if (event.request.url.includes("/js/config.firebase.js")) {
+    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
