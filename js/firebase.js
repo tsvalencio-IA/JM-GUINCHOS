@@ -24,10 +24,20 @@
     ts: () => firebase.firestore.FieldValue.serverTimestamp(),
     arrayUnion: (value) => firebase.firestore.FieldValue.arrayUnion(value),
     emailIsAdmin(email) {
-      return (cfg.auth && cfg.auth.adminEmails || []).map((e) => String(e).toLowerCase()).includes(String(email || "").toLowerCase());
+      const authCfg = cfg.auth || {};
+      const allowed = [
+        ...(authCfg.adminEmails || []),
+        ...(authCfg.superadminEmails || [])
+      ].map((e) => String(e).toLowerCase().trim()).filter(Boolean);
+      return allowed.includes(String(email || "").toLowerCase().trim());
     },
     emailIsSuperAdmin(email) {
-      return (cfg.auth && cfg.auth.superadminEmails || cfg.auth && cfg.auth.adminEmails || []).map((e) => String(e).toLowerCase()).includes(String(email || "").toLowerCase());
+      const authCfg = cfg.auth || {};
+      const allowed = [
+        ...(authCfg.superadminEmails || []),
+        ...(authCfg.adminEmails || [])
+      ].map((e) => String(e).toLowerCase().trim()).filter(Boolean);
+      return allowed.includes(String(email || "").toLowerCase().trim());
     }
   };
 }());

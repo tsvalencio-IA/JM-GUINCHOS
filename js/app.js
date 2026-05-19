@@ -18,8 +18,10 @@
   };
 
   const unsubscribers = [];
+  const GESTOR_ROLES = ["admin", "finance"];
+
   function isAdmin() {
-    return state.profile && ["admin", "finance"].includes(state.profile.role);
+    return state.profile && GESTOR_ROLES.includes(state.profile.role);
   }
 
   function activeCloudinaryConfig() {
@@ -55,34 +57,46 @@
     return `<div class="report-signature">${SYSTEM_SIGNATURE}</div>`;
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // FIX #1: ensureProfile agora auto-corrige o role no Firestore se o email
-  //         estiver em adminEmails mas o documento armazenar role incorreto.
-  // ─────────────────────────────────────────────────────────────────────────────
-  async function ensureProfile(user) {
+  async function ensureGestorProfile(user) {
     const ref = db.collection("users").doc(user.uid);
     const snap = await ref.get();
-
-    if (snap.exists) {
-      const data = snap.data();
-      // Se o email é gestor mas o role está errado (ex: "driver"), corrige no Firestore
-      if (emailIsAdmin(user.email) && !["admin", "finance"].includes(data.role)) {
-        await ref.update({ role: "admin", updatedAt: ts() });
-        return { id: user.uid, ...data, role: "admin" };
-      }
-      return { id: user.uid, ...data };
-    }
-
-    // Documento não existe — cria com role correto
-    const role = emailIsAdmin(user.email) ? "admin" : "driver";
-    const profile = {
+    const baseProfile = {
       uid: user.uid,
       email: user.email,
       nome: user.displayName || user.email.split("@")[0],
-      role,
       active: true,
-      createdAt: ts(),
       updatedAt: ts()
+    };
+
+    if (snap.exists) {
+      const current = { id: user.uid, ...snap.data() };
+      if (current.active === false) {
+        throw new Error("Este usuário está inativo no cadastro da JM Guinchos.");
+      }
+
+      if (GESTOR_ROLES.includes(current.role)) {
+        return current;
+      }
+
+      // Correção de fluxo: se o e-mail está liberado como gestor/superadmin no config,
+      // mas o Firestore ficou salvo como driver por login antigo, repara automaticamente.
+      if (emailIsAdmin(user.email)) {
+        const repaired = { ...baseProfile, role: "admin" };
+        await ref.set(repaired, { merge: true });
+        return { id: user.uid, ...current, ...repaired };
+      }
+
+      throw new Error("Este login pertence ao painel de motorista. Para acessar o gestor, crie/libere este e-mail no superadmin como admin ou finance.");
+    }
+
+    if (!emailIsAdmin(user.email)) {
+      throw new Error("Este e-mail ainda não está liberado como gestor. Cadastre o gestor no superadmin ou inclua o e-mail em auth.adminEmails no js/config.firebase.js.");
+    }
+
+    const profile = {
+      ...baseProfile,
+      role: "admin",
+      createdAt: ts()
     };
     await ref.set(profile, { merge: true });
     return { id: user.uid, ...profile };
@@ -121,18 +135,13 @@
       const btn = document.querySelector(`#navButtons button[data-view="${view}"]`);
       if (btn) btn.classList.toggle("hidden", !allowed);
     });
-    if (!allowed) showView("motorista");
+    if (!allowed) showView("dashboard");
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // FIX #2: onAuthStateChanged nunca redireciona para motorista.html a partir do
-  //         jm.html. Se o usuário não for gestor, faz signOut e exibe erro na
-  //         própria tela de login do painel gestor.
-  // ─────────────────────────────────────────────────────────────────────────────
   auth.onAuthStateChanged(async (user) => {
     stopListeners();
     state.user = user || null;
-
+    state.profile = null;
     if (!user) {
       $("loginView").classList.remove("hidden");
       $("appView").classList.add("hidden");
@@ -140,31 +149,18 @@
     }
 
     try {
-      state.profile = await ensureProfile(user);
+      state.profile = await ensureGestorProfile(user);
+      $("loginView").classList.add("hidden");
+      $("appView").classList.remove("hidden");
+      $("userBox").innerHTML = `<b>${esc(state.profile.nome || user.email)}</b><br>${esc(user.email)}<br><span class="badge info">${esc(state.profile.role)}</span>`;
+      applyRoleVisibility();
+      startListeners();
     } catch (err) {
-      console.error("Erro ao carregar perfil:", err);
-      $("loginError").textContent = "Erro ao verificar perfil. Tente novamente.";
-      await auth.signOut();
-      return;
-    }
-
-    if (!["admin", "finance"].includes(state.profile.role)) {
-      // Não redireciona — mantém no jm.html com mensagem de acesso negado
-      await auth.signOut();
-      $("loginView").classList.remove("hidden");
       $("appView").classList.add("hidden");
-      $("loginError").textContent =
-        "Acesso negado. Este painel é exclusivo para gestores. " +
-        "Use o aplicativo de motorista para acessar seus chamados.";
-      return;
+      $("loginView").classList.remove("hidden");
+      $("loginError").textContent = err && err.message ? err.message : "Acesso de gestor não autorizado.";
+      await auth.signOut().catch(() => {});
     }
-
-    $("loginView").classList.add("hidden");
-    $("appView").classList.remove("hidden");
-    $("loginError").textContent = "";
-    $("userBox").innerHTML = `<b>${esc(state.profile.nome || user.email)}</b><br>${esc(user.email)}<br><span class="badge info">${esc(state.profile.role)}</span>`;
-    applyRoleVisibility();
-    startListeners();
   });
 
   $("loginForm").onsubmit = async (e) => {

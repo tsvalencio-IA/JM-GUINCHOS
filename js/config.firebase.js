@@ -22,7 +22,7 @@ window.JM_CONFIG = {
       "jmguinchos@ts.com"
     ],
     superadminEmails: [
-      "tsvalencio@gmail.com"
+      "jmguinchos@ts.com"
     ]
   },
   tracker: {
