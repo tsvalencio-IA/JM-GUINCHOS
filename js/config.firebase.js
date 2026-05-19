@@ -21,11 +21,11 @@ window.JM_CONFIG = {
     // E-mails que podem acessar o jm.html e o superadmin.html.
     // Adicione aqui o e-mail real do dono/gestor antes de publicar.
     adminEmails: [
-      "jmguinchos@ts.com",
+      "jm@jm.com",
       "tsvalencio@gmail.com"
     ],
     superadminEmails: [
-      "jmguinchos@ts.com",
+      "jm@jm.com",
       "tsvalencio@gmail.com"
     ],
     // Correção do fluxo: se um e-mail gestor ficou salvo por engano como motorista,
