@@ -5,6 +5,7 @@
   const { auth, secondaryAuth, db, ts, arrayUnion, emailIsAdmin } = window.JM.firebase;
   const cfg = window.JM_CONFIG || {};
   const SYSTEM_SIGNATURE = "Powered by thIAguinho Soluções Digitais";
+  const LOGIN_FLOW_VERSION = "jm-login-definitivo-v9";
 
   const state = {
     user: null,
@@ -18,10 +19,15 @@
   };
 
   const unsubscribers = [];
-  const GESTOR_ROLES = ["admin", "finance"];
+  const GESTOR_ROLES = ["admin", "finance", "superadmin", "gestor", "owner", "manager"];
+  const DRIVER_ROLES = ["driver", "motorista"];
+
+  function normalizedRole(role) {
+    return String(role || "").toLowerCase().trim();
+  }
 
   function isAdmin() {
-    return state.profile && GESTOR_ROLES.includes(state.profile.role);
+    return state.profile && GESTOR_ROLES.includes(normalizedRole(state.profile.role));
   }
 
   function activeCloudinaryConfig() {
@@ -57,49 +63,66 @@
     return `<div class="report-signature">${SYSTEM_SIGNATURE}</div>`;
   }
 
+  function gestorAccessAllowedByConfig(user) {
+    const authCfg = cfg.auth || {};
+    // Mantém a trava por lista de e-mails quando ela existir.
+    // Se a lista estiver vazia/removida, o sistema permite o primeiro gestor criar o perfil.
+    const list = [
+      ...(authCfg.adminEmails || []),
+      ...(authCfg.superadminEmails || [])
+    ].map((e) => String(e).toLowerCase().trim()).filter(Boolean);
+    if (!list.length) return true;
+    return emailIsAdmin(user.email);
+  }
+
+  async function saveGestorProfile(ref, profile, existingData) {
+    const payload = existingData ? profile : Object.assign({ createdAt: ts() }, profile);
+    await ref.set(payload, { merge: true });
+    return { id: profile.uid, ...(existingData || {}), ...profile };
+  }
+
   async function ensureGestorProfile(user) {
     const ref = db.collection("users").doc(user.uid);
     const snap = await ref.get();
+    const current = snap.exists ? { id: user.uid, ...snap.data() } : null;
+
+    if (current && current.active === false) {
+      throw new Error("Este usuário está inativo no cadastro da JM Guinchos.");
+    }
+
     const baseProfile = {
       uid: user.uid,
       email: user.email,
-      nome: user.displayName || user.email.split("@")[0],
+      nome: (current && current.nome) || user.displayName || user.email.split("@")[0],
       active: true,
       updatedAt: ts()
     };
 
-    if (snap.exists) {
-      const current = { id: user.uid, ...snap.data() };
-      if (current.active === false) {
-        throw new Error("Este usuário está inativo no cadastro da JM Guinchos.");
-      }
-
-      if (GESTOR_ROLES.includes(current.role)) {
-        return current;
-      }
-
-      // Correção de fluxo: se o e-mail está liberado como gestor/superadmin no config,
-      // mas o Firestore ficou salvo como driver por login antigo, repara automaticamente.
-      if (emailIsAdmin(user.email)) {
-        const repaired = { ...baseProfile, role: "admin" };
-        await ref.set(repaired, { merge: true });
-        return { id: user.uid, ...current, ...repaired };
-      }
-
-      throw new Error("Este login pertence ao painel de motorista. Para acessar o gestor, crie/libere este e-mail no superadmin como admin ou finance.");
+    if (current && GESTOR_ROLES.includes(normalizedRole(current.role))) {
+      return { ...current, role: normalizedRole(current.role) === "finance" ? "finance" : "admin" };
     }
 
-    if (!emailIsAdmin(user.email)) {
-      throw new Error("Este e-mail ainda não está liberado como gestor. Cadastre o gestor no superadmin ou inclua o e-mail em auth.adminEmails no js/config.firebase.js.");
+    if (!gestorAccessAllowedByConfig(user)) {
+      throw new Error("Este e-mail não está liberado como gestor em js/config.firebase.js. Adicione o e-mail em auth.adminEmails/superadminEmails e publique novamente.");
     }
 
-    const profile = {
+    // Correção definitiva do bug: jm.html é painel gestor.
+    // Se o usuário foi criado como driver/motorista por fluxo antigo, repara para admin.
+    const repairedProfile = {
       ...baseProfile,
       role: "admin",
-      createdAt: ts()
+      loginFixedAt: new Date().toISOString(),
+      loginFlowVersion: LOGIN_FLOW_VERSION
     };
-    await ref.set(profile, { merge: true });
-    return { id: user.uid, ...profile };
+
+    try {
+      return await saveGestorProfile(ref, repairedProfile, current || null);
+    } catch (err) {
+      if (err && err.code === "permission-denied") {
+        throw new Error("O login foi aceito, mas o Firestore bloqueou a correção do perfil. Publique as novas firestore.rules deste ZIP ou altere o documento users/" + user.uid + " para role: admin.");
+      }
+      throw err;
+    }
   }
 
   function listenCollection(name, target) {
@@ -135,6 +158,7 @@
       const btn = document.querySelector(`#navButtons button[data-view="${view}"]`);
       if (btn) btn.classList.toggle("hidden", !allowed);
     });
+    // Importante: nunca redirecionar o jm.html para motorista.html.
     if (!allowed) showView("dashboard");
   }
 
@@ -176,7 +200,7 @@
   function friendlyAuthError(err) {
     const code = err && err.code || "";
     if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
-      return "Usuário ou senha inválidos. O acesso de gestor deve ser criado no superadmin.";
+      return "Usuário ou senha inválidos. O acesso de gestor deve existir no Firebase Authentication.";
     }
     if (code === "auth/operation-not-allowed") {
       return "Ative o provedor E-mail/Senha no Firebase Authentication.";
@@ -201,7 +225,7 @@
   function renderSelects() {
     const vehicleOptions = Object.values(state.vehicles).map((v) => `<option value="${esc(v.id)}">${esc(v.placa || v.id)} - ${esc(v.apelido || v.tipo || "")}</option>`).join("");
     ["callVehicle", "expenseVehicle"].forEach((id) => { if ($(id)) $(id).innerHTML = `<option value="">Selecione</option>${vehicleOptions}`; });
-    const drivers = Object.values(state.users).filter((u) => u.active !== false && ["driver", "admin"].includes(u.role));
+    const drivers = Object.values(state.users).filter((u) => u.active !== false && ["driver", "motorista", "admin"].includes(normalizedRole(u.role)));
     if ($("callDriver")) $("callDriver").innerHTML = `<option value="">Selecione</option>` + drivers.map((u) => `<option value="${esc(u.id)}">${esc(u.nome || u.email)}</option>`).join("");
     const myCalls = Object.values(state.calls).filter((c) => c.driverId === state.user?.uid && !["Finalizado", "Cancelado"].includes(c.status));
     if ($("expenseCall")) $("expenseCall").innerHTML = `<option value="">Sem chamado</option>` + myCalls.map((c) => `<option value="${esc(c.id)}">${esc(c.protocolo || c.cliente)}</option>`).join("");
@@ -221,154 +245,123 @@
     $("kpiRevenue").textContent = money(revenue);
     $("kpiExpenses").textContent = money(pendingExpenses);
     $("kpiOnline").textContent = online;
-    $("timelineBox").innerHTML = calls.sort((a, b) => Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0)).slice(0, 8).map((c) => `
-      <div class="timeline-item">
-        <b>${esc(c.protocolo || c.id)}</b> <span class="badge ${statusClass(c.status)}">${esc(c.status || "Novo")}</span>
-        <div class="muted small">${esc(c.cliente || "")} - ${esc(c.serviceType || "")}</div>
-      </div>
-    `).join("") || `<p class="muted">Sem eventos ainda.</p>`;
-  }
-
-  function callButtons(call) {
-    if (!isAdmin()) return "";
-    const id = esc(call.id);
-    return `<div class="actions">
-      <button class="btn warn" onclick="JM.app.setCallStatus('${id}','Despachado')">Despachar</button>
-      <button class="btn primary" onclick="JM.app.setCallStatus('${id}','Em Atendimento')">Atender</button>
-      <button class="btn good" onclick="JM.app.setCallStatus('${id}','Finalizado')">Finalizar</button>
-      <button class="btn danger" onclick="JM.app.setCallStatus('${id}','Cancelado')">Cancelar</button>
-    </div>`;
+    const events = calls.flatMap((c) => (c.timeline || []).map((t) => ({ ...t, call: c }))).sort((a, b) => String(b.at || "").localeCompare(String(a.at || ""))).slice(0, 10);
+    $("timelineBox").innerHTML = events.length ? events.map((e) => `<div class="timeline-item"><b>${esc(e.call.protocolo || e.call.cliente || "Chamado")}</b><br><span>${esc(e.text || "")}</span><br><small>${dateTime(e.at)}</small></div>`).join("") : `<p class="muted">Sem eventos ainda.</p>`;
   }
 
   function renderCalls() {
-    const calls = Object.values(state.calls).sort((a, b) => Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0));
-    $("callsTable").innerHTML = `<table><thead><tr><th>Status</th><th>Cliente</th><th>Rota</th><th>Equipe</th><th>Valor</th><th>Ações</th></tr></thead><tbody>` +
-      calls.map((c) => {
-        const vehicle = state.vehicles[c.vehicleId] || {};
-        const driver = state.users[c.driverId] || {};
-        const pts = callRoutePoints(c, vehicle);
-        return `<tr>
-          <td><span class="badge ${statusClass(c.status)}">${esc(c.status || "Novo")}</span><br><span class="muted small">${esc(c.protocolo || "")}</span></td>
-          <td><b>${esc(c.cliente || "")}</b><br><span class="muted small">${esc(c.telefone || "")}</span></td>
-          <td>${esc(c.origem?.label || "-")}<br><span class="muted small">Destino: ${esc(c.destino?.label || "-")} | ${routeKm(pts).toFixed(1)} km estimados</span></td>
-          <td>${esc(vehicle.placa || "-")}<br><span class="muted small">${esc(driver.nome || driver.email || "Sem motorista")}</span></td>
-          <td><b>${money(c.valor || 0)}</b></td>
-          <td>${callButtons(c)}</td>
-        </tr>`;
-      }).join("") + `</tbody></table>${reportSignature()}`;
+    const rows = Object.values(state.calls).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+    if (!rows.length) return $("callsTable").innerHTML = `<p class="muted">Nenhum chamado registrado.</p>`;
+    $("callsTable").innerHTML = `<table><thead><tr><th>Protocolo</th><th>Cliente</th><th>Origem/Destino</th><th>Veículo</th><th>Status</th><th>Ações</th></tr></thead><tbody>` + rows.map((c) => {
+      const vehicle = state.vehicles[c.vehicleId] || {};
+      const driver = state.users[c.driverId] || {};
+      return `<tr>
+        <td><b>${esc(c.protocolo || c.id)}</b><br><span class="muted small">${dateTime(c.createdAt)}</span></td>
+        <td>${esc(c.cliente || "")}<br><span class="muted small">${esc(c.phone || "")}</span></td>
+        <td><span class="small">${esc(c.originLabel || "-")}</span><br><span class="muted small">→ ${esc(c.destLabel || "-")}</span><br><b>${routeKm(c)} km</b></td>
+        <td>${esc(vehicle.placa || "-")}<br><span class="muted small">${esc(driver.nome || driver.email || "Sem motorista")}</span></td>
+        <td><span class="badge ${statusClass(c.status)}">${esc(c.status || "Novo")}</span><br><b>${money(c.valor || 0)}</b></td>
+        <td class="row-actions"><button class="btn good" onclick="JM.app.setCallStatus('${esc(c.id)}','Despachado')">Despachar</button><button class="btn primary" onclick="JM.app.setCallStatus('${esc(c.id)}','Em Atendimento')">Atender</button><button class="btn" onclick="JM.app.setCallStatus('${esc(c.id)}','Finalizado')">Finalizar</button></td>
+      </tr>`;
+    }).join("") + `</tbody></table>`;
   }
 
   $("callForm").onsubmit = async (e) => {
     e.preventDefault();
     if (!isAdmin()) return toast("Somente gestor pode registrar chamado.", "danger");
-    const originCoords = coords($("callOriginLat").value, $("callOriginLng").value);
-    const destCoords = coords($("callDestLat").value, $("callDestLng").value);
     const protocolo = "JM-" + new Date().toISOString().replace(/\D/g, "").slice(2, 14);
-    const doc = {
+    const data = {
       protocolo,
       cliente: $("callClient").value.trim(),
-      telefone: $("callPhone").value.trim(),
+      phone: $("callPhone").value.trim(),
       serviceType: $("callType").value,
       valor: parseMoney($("callPrice").value),
       vehicleId: $("callVehicle").value,
       driverId: $("callDriver").value,
-      origem: { label: $("callOriginLabel").value.trim(), coords: originCoords },
-      destino: { label: $("callDestLabel").value.trim(), coords: destCoords },
-      notes: $("callNotes").value.trim(),
+      originLabel: $("callOriginLabel").value.trim(),
+      destLabel: $("callDestLabel").value.trim(),
+      origin: coords($("callOriginLat").value, $("callOriginLng").value),
+      destination: coords($("callDestLat").value, $("callDestLng").value),
       status: $("callDriver").value ? "Despachado" : "Novo",
-      paymentStatus: "A receber",
-      createdBy: state.user.uid,
+      notes: $("callNotes").value.trim(),
       createdAt: new Date().toISOString(),
-      createdAtMs: Date.now(),
-      updatedAt: Date.now(),
-      timeline: [{ at: new Date().toISOString(), by: state.profile.nome || state.user.email, text: "Chamado registrado." }]
+      createdBy: state.user.uid,
+      timeline: [{ at: new Date().toISOString(), by: state.profile.nome || state.user.email, text: "Chamado criado" }]
     };
-    await db.collection("calls").add(doc);
+    await db.collection("calls").add(data);
     e.target.reset();
     toast("Chamado registrado.", "ok");
   };
 
   async function setCallStatus(id, status) {
+    if (!isAdmin()) return toast("Somente gestor pode alterar status.", "danger");
     const call = state.calls[id];
     if (!call) return;
     const updates = {
       status,
-      updatedAt: Date.now(),
+      updatedAt: new Date().toISOString(),
       timeline: arrayUnion({ at: new Date().toISOString(), by: state.profile.nome || state.user.email, text: "Status alterado para " + status })
     };
     if (status === "Finalizado" && Number(call.valor || 0) > 0 && !call.financeCreated) {
       updates.financeCreated = true;
       await db.collection("transactions").add({
         type: "entrada",
-        description: "Recebimento chamado " + (call.protocolo || id) + " - " + (call.cliente || ""),
+        date: todayInput(),
+        description: `Chamado ${call.protocolo || id} - ${call.cliente || ""}`,
         amount: Number(call.valor || 0),
         status: "A receber",
         callId: id,
         vehicleId: call.vehicleId || "",
-        date: todayInput(),
         createdAt: new Date().toISOString(),
         createdBy: state.user.uid
       });
     }
     await db.collection("calls").doc(id).update(updates);
-    toast("Chamado atualizado.", "ok");
+    toast("Status atualizado.", "ok");
   }
 
   function renderVehicles() {
-    const rows = Object.values(state.vehicles).sort((a, b) => String(a.placa).localeCompare(String(b.placa)));
-    $("fleetTable").innerHTML = `<table><thead><tr><th>Placa</th><th>Tipo</th><th>Status</th><th>Tracker</th><th>Última posição</th></tr></thead><tbody>` +
-      rows.map((v) => `<tr>
-        <td><b>${esc(v.placa || v.id)}</b><br><span class="muted small">${esc(v.apelido || "")}</span></td>
-        <td>${esc(v.tipo || "")}</td>
-        <td><span class="badge ${statusClass(v.status)}">${esc(v.status || "")}</span></td>
-        <td>${esc(v.trackerId || "")}<br><span class="muted small">${esc(v.trackerStatus || "")}</span></td>
-        <td>${v.location ? `${Number(v.location.lat).toFixed(5)}, ${Number(v.location.lng).toFixed(5)}` : "-"}<br><span class="muted small">${esc(v.lastTrackerAt || "")}</span></td>
-      </tr>`).join("") + `</tbody></table>${reportSignature()}`;
-    $("vehicleCards").innerHTML = rows.map((v) => `<div class="card col-3">
-      <h3>${esc(v.placa || v.id)}</h3>
-      <p class="muted small">${esc(v.apelido || v.tipo || "")}</p>
-      <p><span class="badge ${statusClass(v.status)}">${esc(v.status || "Sem status")}</span></p>
-      <p class="small">Tracker: ${esc(v.trackerId || "-")}</p>
-    </div>`).join("");
+    const rows = Object.values(state.vehicles).sort((a, b) => String(a.placa || "").localeCompare(String(b.placa || "")));
+    $("fleetTable").innerHTML = rows.length ? `<table><thead><tr><th>Placa</th><th>Tipo</th><th>Status</th><th>Tracker</th></tr></thead><tbody>` + rows.map((v) => `<tr><td><b>${esc(v.placa || v.id)}</b><br><span class="muted small">${esc(v.apelido || "")}</span></td><td>${esc(v.tipo || "")}</td><td><span class="badge info">${esc(v.status || "")}</span></td><td>${v.location ? `${esc(v.location.lat)}, ${esc(v.location.lng)}` : "Sem posição"}</td></tr>`).join("") + `</tbody></table>` : `<p class="muted">Nenhum veículo.</p>`;
+
+    $("vehicleCards").innerHTML = rows.length ? rows.map((v) => `<div class="card col-3"><b>${esc(v.placa || v.id)}</b><p class="muted small">${esc(v.apelido || v.tipo || "")}</p><span class="badge info">${esc(v.status || "")}</span><p class="small">${v.location ? `Lat ${esc(v.location.lat)}<br>Lng ${esc(v.location.lng)}` : "Sem posição do tracker"}</p></div>`).join("") : `<p class="muted">Sem frota cadastrada.</p>`;
   }
 
   $("vehicleForm").onsubmit = async (e) => {
     e.preventDefault();
     if (!isAdmin()) return toast("Somente gestor pode editar frota.", "danger");
-    const id = plateKey($("vehiclePlate").value);
-    if (!id) return toast("Placa obrigatória.", "danger");
-    await db.collection("vehicles").doc(id).set({
-      placa: id,
+    const placa = plateKey($("vehiclePlate").value);
+    if (!placa) return toast("Informe a placa.", "danger");
+    await db.collection("vehicles").doc(placa).set({
+      placa,
       apelido: $("vehicleAlias").value.trim(),
       tipo: $("vehicleType").value.trim(),
       status: $("vehicleStatus").value,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      updatedBy: state.user.uid
     }, { merge: true });
     e.target.reset();
     toast("Veículo salvo.", "ok");
   };
 
   function renderTeam() {
-    const rows = Object.values(state.users).sort((a, b) => String(a.nome || a.email).localeCompare(String(b.nome || b.email)));
-    $("teamTable").innerHTML = `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th></tr></thead><tbody>` +
+    const rows = Object.values(state.users).sort((a, b) => String(a.nome || a.email || "").localeCompare(String(b.nome || b.email || "")));
+    $("teamTable").innerHTML = rows.length ? `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th></tr></thead><tbody>` +
       rows.map((u) => `<tr><td><b>${esc(u.nome || "")}</b><br><span class="muted small">${esc(u.uid || u.id)}</span></td><td>${esc(u.email || "")}</td><td><span class="badge info">${esc(u.role || "")}</span></td><td>${u.active === false ? "Inativo" : "Ativo"}</td></tr>`).join("") +
-      `</tbody></table>${reportSignature()}`;
+      `</tbody></table>` : `<p class="muted">Nenhum usuário.</p>`;
   }
 
   $("teamForm").onsubmit = async (e) => {
     e.preventDefault();
     if (!isAdmin()) return toast("Somente gestor pode editar equipe.", "danger");
     const email = $("teamEmail").value.trim().toLowerCase();
-    const pass = $("teamPass") ? $("teamPass").value : "";
-    let id = "";
-    const existing = Object.values(state.users).find((u) => String(u.email || "").toLowerCase() === email);
-    if (existing) {
-      id = existing.id;
-    } else {
-      if (!pass || pass.length < 6) return toast("Informe uma senha inicial com pelo menos 6 caracteres para criar o motorista no Auth.", "danger");
+    const pass = $("teamPass").value;
+    let uid = uidSafe(email);
+    if (pass) {
+      if (pass.length < 6) return toast("Informe uma senha inicial com pelo menos 6 caracteres para criar o motorista no Auth.", "danger");
       try {
         const cred = await secondaryAuth.createUserWithEmailAndPassword(email, pass);
-        id = cred.user.uid;
+        uid = cred.user.uid;
         await secondaryAuth.signOut().catch(() => {});
       } catch (err) {
         if (err && err.code === "auth/email-already-in-use") {
@@ -377,83 +370,57 @@
         return toast(friendlyAuthError(err), "danger");
       }
     }
-    await db.collection("users").doc(id).set({
-      uid: id,
+    await db.collection("users").doc(uid).set({
+      uid,
       nome: $("teamName").value.trim(),
       email,
       role: $("teamRole").value,
       active: $("teamActive").value === "true",
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      updatedBy: state.user.uid
     }, { merge: true });
     e.target.reset();
-    toast("Colaborador salvo.", "ok");
+    toast("Motorista salvo.", "ok");
   };
 
   function renderDriverPanel() {
     const myCalls = Object.values(state.calls).filter((c) => isAdmin() || c.driverId === state.user?.uid);
     $("driverCalls").innerHTML = myCalls.length ? myCalls.map((c) => {
-      const vehicle = state.vehicles[c.vehicleId] || {};
-      return `<div class="card" style="margin-bottom:10px">
-        <div class="actions" style="justify-content:space-between">
-          <div><b>${esc(c.protocolo || c.id)}</b><br><span class="muted small">${esc(c.cliente || "")} - ${esc(vehicle.placa || "")}</span></div>
-          <span class="badge ${statusClass(c.status)}">${esc(c.status || "")}</span>
-        </div>
-        <p class="small"><b>Origem:</b> ${esc(c.origem?.label || "-")}<br><b>Destino:</b> ${esc(c.destino?.label || "-")}</p>
-        <div class="actions">
-          <button class="btn primary" onclick="JM.app.setCallStatus('${esc(c.id)}','Em Atendimento')">Iniciar</button>
-          <button class="btn good" onclick="JM.app.setCallStatus('${esc(c.id)}','Finalizado')">Finalizar</button>
-        </div>
-      </div>`;
-    }).join("") + reportSignature() : `<p class="muted">Nenhum chamado vinculado ao seu usuário.</p>${reportSignature()}`;
+      const route = callRoutePoints(c);
+      return `<div class="card" style="margin-bottom:12px"><div class="actions"><div><b>${esc(c.protocolo || c.cliente)}</b><br><span class="muted small">${esc(c.originLabel || "")} → ${esc(c.destLabel || "")}</span></div><span class="badge ${statusClass(c.status)}">${esc(c.status || "")}</span></div><p>${esc(c.notes || "")}</p><p><b>${routeKm(c)} km</b></p>${route.origin && route.destination ? `<a class="btn primary" target="_blank" href="https://www.google.com/maps/dir/${route.origin.lat},${route.origin.lng}/${route.destination.lat},${route.destination.lng}">Abrir rota</a>` : ""}</div>`;
+    }).join("") : `<p class="muted">Nenhum chamado.</p>`;
   }
 
-  async function uploadToCloudinary(file) {
-    const cloud = activeCloudinaryConfig();
-    if (!file || !cloud.cloudName || !cloud.uploadPreset) return "";
-    const form = new FormData();
-    form.append("file", file);
-    form.append("upload_preset", cloud.uploadPreset);
-    form.append("folder", cloud.folder || "jm-guinchos");
-    const response = await fetch(`https://api.cloudinary.com/v1_1/${cloud.cloudName}/upload`, { method: "POST", body: form });
-    if (!response.ok) throw new Error("Cloudinary recusou o upload.");
-    const data = await response.json();
-    return data.secure_url || "";
-  }
-
-  if ($("expenseForm")) $("expenseForm").onsubmit = async (e) => {
+  $("expenseForm") && ($("expenseForm").onsubmit = async (e) => {
     e.preventDefault();
-    const photo = $("expensePhoto").files && $("expensePhoto").files[0];
-    let photoUrl = "";
-    try { photoUrl = await uploadToCloudinary(photo); } catch (err) { toast("Foto não enviada: " + err.message, "danger"); }
-    await db.collection("expenses").add({
+    const data = {
       callId: $("expenseCall").value,
       vehicleId: $("expenseVehicle").value,
       type: $("expenseType").value,
       amount: parseMoney($("expenseAmount").value),
       notes: $("expenseNotes").value.trim(),
-      photoUrl,
       status: "pendente",
       driverId: state.user.uid,
       driverName: state.profile.nome || state.user.email,
-      createdAt: new Date().toISOString(),
-      createdBy: state.user.uid
-    });
+      createdAt: new Date().toISOString()
+    };
+    await db.collection("expenses").add(data);
     e.target.reset();
     toast("Despesa enviada para aprovação.", "ok");
-  };
+  });
 
   function renderFinance() {
-    const transactions = Object.values(state.transactions).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    const rows = Object.values(state.transactions).sort((a, b) => String(b.createdAt || b.date || "").localeCompare(String(a.createdAt || a.date || "")));
     $("financeTable").innerHTML = `<table><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Status</th><th>Valor</th></tr></thead><tbody>` +
-      transactions.map((t) => `<tr><td>${esc(t.date || dateTime(t.createdAt))}</td><td><span class="badge ${t.type === "entrada" ? "ok" : "danger"}">${esc(t.type)}</span></td><td>${esc(t.description || "")}</td><td>${esc(t.status || "")}</td><td><b>${money(t.amount || 0)}</b></td></tr>`).join("") +
+      rows.map((t) => `<tr><td>${esc(t.date || dateTime(t.createdAt))}</td><td>${esc(t.type || "")}</td><td>${esc(t.description || "")}</td><td>${esc(t.status || "")}</td><td><b>${money(t.amount || 0)}</b></td></tr>`).join("") +
       `</tbody></table>${reportSignature()}`;
     const pending = Object.values(state.expenses).filter((e) => e.status === "pendente");
     $("expenseApproval").innerHTML = `<table><thead><tr><th>Motorista</th><th>Tipo</th><th>Valor</th><th>Obs</th><th>Ações</th></tr></thead><tbody>` +
       pending.map((e) => `<tr>
         <td>${esc(e.driverName || e.driverId)}</td><td>${esc(e.type || "")}</td><td><b>${money(e.amount || 0)}</b></td>
         <td>${esc(e.notes || "")}${e.photoUrl ? `<br><a class="info" href="${esc(e.photoUrl)}" target="_blank">Comprovante</a>` : ""}</td>
-        <td><button class="btn good" onclick="JM.app.approveExpense('${esc(e.id)}')">Aprovar</button> <button class="btn danger" onclick="JM.app.rejectExpense('${esc(e.id)}')">Reprovar</button></td>
-      </tr>`).join("") + `</tbody></table>${reportSignature()}`;
+        <td><button class="btn good" onclick="JM.app.approveExpense('${esc(e.id)}')">Aprovar</button><button class="btn danger" onclick="JM.app.rejectExpense('${esc(e.id)}')">Reprovar</button></td>
+      </tr>`).join("") + `</tbody></table>`;
   }
 
   $("financeForm").onsubmit = async (e) => {
@@ -461,7 +428,7 @@
     if (!isAdmin()) return toast("Somente gestor/financeiro pode lançar.", "danger");
     await db.collection("transactions").add({
       type: $("finType").value,
-      date: $("finDate").value || todayInput(),
+      date: $("finDate").value,
       description: $("finDesc").value.trim(),
       amount: parseMoney($("finAmount").value),
       status: $("finStatus").value,
@@ -505,10 +472,16 @@
     if (active.id === "view-mapa") window.JM.mapa.renderFleetMap("fleetMap", state.vehicles, state.calls);
   }
 
+  function registerFreshServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("service-worker.js?v=" + LOGIN_FLOW_VERSION).catch(() => {});
+  }
+
   function boot() {
     bindNavigation();
     $("finDate").value = todayInput();
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch(() => {});
+    console.info("JM Guinchos login flow", LOGIN_FLOW_VERSION);
+    registerFreshServiceWorker();
   }
 
   window.JM = window.JM || {};
