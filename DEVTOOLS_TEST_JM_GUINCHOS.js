@@ -16,12 +16,15 @@
   fn("JM.firebase.db") ? ok("Firestore inicializado") : fail("Firestore inicializado");
   fn("JM.tracker.syncTrackerToFirestore") ? ok("Adaptador Tracker") : fail("Adaptador Tracker");
   fn("JM.mapa.renderFleetMap") ? ok("Motor de mapa") : fail("Motor de mapa");
-  ["loginView","appView","dashboardMap","fleetMap","callForm","expenseForm","financeForm","vehicleForm","teamForm"].forEach((id) => has(id) ? ok("Elemento #" + id) : fail("Elemento #" + id));
+  fn("JM.googleMaps.rankVehicles") ? ok("Motor Google/rota inteligente") : fail("Motor Google/rota inteligente");
+  ["loginView","appView","dashboardMap","fleetMap","callForm","callOriginLabel","btnSmartRoute","smartRouteBox","financeForm","vehicleForm","teamForm"].forEach((id) => has(id) ? ok("Elemento #" + id) : fail("Elemento #" + id));
   const tracker = window.JM_CONFIG && window.JM_CONFIG.tracker || {};
   tracker.vehicles && tracker.vehicles.FHA4B30 ? ok("Veículo FHA4B30 configurado") : fail("Veículo FHA4B30 configurado");
   tracker.vehicles && tracker.vehicles.DAJ6J95 ? ok("Veículo DAJ6J95 configurado") : fail("Veículo DAJ6J95 configurado");
   tracker.endpoint ? ok("Endpoint Tracker configurado") : warn("Endpoint Tracker configurado", "Sem endpoint, sistema usa posições demonstrativas ate preencher config.firebase.js.");
-  tracker.token ? ok("Token Tracker configurado") : warn("Token Tracker configurado", "Sem token, sistema usa posições demonstrativas ate preencher config.firebase.js.");
+  tracker.token ? ok("Token Tracker configurado") : warn("Token Tracker configurado", "Sem token, sincronização real depende do superadmin/config.firebase.js.");
+  const gm = window.JM_CONFIG && window.JM_CONFIG.googleMaps || {};
+  gm.apiKey ? ok("Google Maps API key configurada") : warn("Google Maps API key configurada", "Sem chave, autocomplete/geocoding não ativa; rota usa fallback por coordenadas.");
   console.table(out);
   const falhas = out.filter((x) => x.status === "FALHA").length;
   const atencoes = out.filter((x) => x.status === "ATENCAO").length;

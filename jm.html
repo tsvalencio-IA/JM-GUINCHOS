@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#07111f">
   <title>JM Guinchos - Gestor</title>
-  <link rel="manifest" href="manifest.json?v=jm-login-definitivo-v9">
+  <link rel="manifest" href="manifest.json?v=jm-google-rotas-v11">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/style.css?v=jm-login-definitivo-v9">
+  <link rel="stylesheet" href="css/style.css?v=jm-google-rotas-v11">
 </head>
 <body>
   <section id="loginView" class="login">
@@ -95,12 +95,40 @@
                 <div><label>Valor previsto</label><input id="callPrice" inputmode="decimal" placeholder="0,00"></div>
                 <div><label>Veículo</label><select id="callVehicle"></select></div>
                 <div><label>Motorista</label><select id="callDriver"></select></div>
-                <div class="wide"><label>Origem / local do veículo</label><input id="callOriginLabel" placeholder="Endereço ou referência"></div>
-                <div><label>Origem lat</label><input id="callOriginLat" inputmode="decimal" placeholder="-21.1774"></div>
-                <div><label>Origem lng</label><input id="callOriginLng" inputmode="decimal" placeholder="-47.8103"></div>
-                <div class="wide"><label>Destino</label><input id="callDestLabel" placeholder="Destino, pátio, oficina ou cliente"></div>
-                <div><label>Destino lat</label><input id="callDestLat" inputmode="decimal"></div>
-                <div><label>Destino lng</label><input id="callDestLng" inputmode="decimal"></div>
+                <div class="wide geo-block">
+                  <label>Origem / local do veículo</label>
+                  <input id="callOriginLabel" placeholder="Digite o endereço e selecione a sugestão do Google">
+                  <div class="geo-actions">
+                    <button class="btn" id="btnGeocodeOrigin" type="button">Validar origem no Google</button>
+                    <button class="btn" id="btnUseCurrentLocation" type="button">Usar localização atual</button>
+                  </div>
+                  <div id="originGeoStatus" class="small muted geo-status">Aguardando endereço validado pelo Google.</div>
+                </div>
+                <div><label>Origem lat</label><input id="callOriginLat" inputmode="decimal" placeholder="automático"></div>
+                <div><label>Origem lng</label><input id="callOriginLng" inputmode="decimal" placeholder="automático"></div>
+                <div class="wide geo-block">
+                  <label>Destino</label>
+                  <input id="callDestLabel" placeholder="Destino, pátio, oficina ou cliente">
+                  <div class="geo-actions">
+                    <button class="btn" id="btnGeocodeDest" type="button">Validar destino no Google</button>
+                  </div>
+                  <div id="destGeoStatus" class="small muted geo-status">Destino opcional, mas recomendado para rota completa.</div>
+                </div>
+                <div><label>Destino lat</label><input id="callDestLat" inputmode="decimal" placeholder="automático"></div>
+                <div><label>Destino lng</label><input id="callDestLng" inputmode="decimal" placeholder="automático"></div>
+                <div class="wide route-planner">
+                  <div class="actions" style="justify-content:space-between;align-items:center">
+                    <div>
+                      <b>Rota inteligente</b>
+                      <div class="muted small">Calcula o melhor veículo pela posição real do tracker + endereço validado.</div>
+                    </div>
+                    <div class="actions">
+                      <button class="btn good" id="btnSmartRoute" type="button">Traçar rota inteligente</button>
+                      <button class="btn" id="btnOpenGoogleRoute" type="button">Abrir no Google Maps</button>
+                    </div>
+                  </div>
+                  <div id="smartRouteBox" class="smart-route-box small muted">Configure a chave Google Maps no superadmin para usar autocomplete, geocodificação e tempo de rota real. Sem chave, o sistema usa estimativa simples por coordenadas.</div>
+                </div>
                 <div class="wide"><label>Observações</label><textarea id="callNotes"></textarea></div>
                 <button class="btn primary wide" type="submit">Registrar chamado</button>
               </form>
@@ -193,14 +221,15 @@
   <footer class="signature-footer">Powered by thIAguinho Soluções Digitais</footer>
   <div id="toast" class="toast"></div>
 
-  <script src="js/config.firebase.js?v=jm-login-definitivo-v9"></script>
+  <script src="js/config.firebase.js?v=jm-google-rotas-v11"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="js/utils.js?v=jm-login-definitivo-v9"></script>
-  <script src="js/firebase.js?v=jm-login-definitivo-v9"></script>
-  <script src="js/tracker.js?v=jm-login-definitivo-v9"></script>
-  <script src="js/mapa.js?v=jm-login-definitivo-v9"></script>
-  <script src="js/app.js?v=jm-login-definitivo-v9"></script>
+  <script src="js/utils.js?v=jm-google-rotas-v11"></script>
+  <script src="js/firebase.js?v=jm-google-rotas-v11"></script>
+  <script src="js/tracker.js?v=jm-google-rotas-v11"></script>
+  <script src="js/google-maps.js?v=jm-google-rotas-v11"></script>
+  <script src="js/mapa.js?v=jm-google-rotas-v11"></script>
+  <script src="js/app.js?v=jm-google-rotas-v11"></script>
 </body>
 </html>

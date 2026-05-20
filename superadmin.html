@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07111f">
   <title>JM Guinchos - Superadmin</title>
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/style.css?v=jm-login-definitivo-v9">
+  <link rel="stylesheet" href="css/style.css?v=jm-google-rotas-v11">
 </head>
 <body>
   <section id="superLoginView" class="login">
@@ -89,6 +89,16 @@
             <div><label>Upload preset</label><input id="superCloudPreset"></div>
             <button class="btn primary wide" type="submit">Salvar Cloudinary</button>
           </form>
+          <h2 style="margin-top:18px">Google Maps / Rotas inteligentes</h2>
+          <form id="superGoogleMapsForm" class="form-grid">
+            <div class="wide"><label>Google Maps API Key</label><input id="superGoogleMapsKey" type="password" placeholder="AIza..."></div>
+            <div><label>Idioma</label><input id="superGoogleMapsLanguage" placeholder="pt-BR"></div>
+            <div><label>Região</label><input id="superGoogleMapsRegion" placeholder="BR"></div>
+            <div><label>Centro latitude</label><input id="superGoogleMapsCenterLat" inputmode="decimal" placeholder="-20.8113"></div>
+            <div><label>Centro longitude</label><input id="superGoogleMapsCenterLng" inputmode="decimal" placeholder="-49.3758"></div>
+            <div class="wide"><label>Raio de busca em metros</label><input id="superGoogleMapsRadius" inputmode="numeric" placeholder="90000"></div>
+            <button class="btn primary wide" type="submit">Salvar Google Maps</button>
+          </form>
         </section>
       </div>
     </main>
@@ -97,13 +107,13 @@
   <footer class="signature-footer">Powered by thIAguinho Soluções Digitais</footer>
   <div id="toast" class="toast"></div>
 
-  <script src="js/config.firebase.js?v=jm-login-definitivo-v9"></script>
+  <script src="js/config.firebase.js?v=jm-google-rotas-v11"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="js/utils.js?v=jm-login-definitivo-v9"></script>
-  <script src="js/firebase.js?v=jm-login-definitivo-v9"></script>
-  <script src="js/tracker.js?v=jm-login-definitivo-v9"></script>
-  <script src="js/superadmin.js?v=jm-login-definitivo-v9"></script>
+  <script src="js/utils.js?v=jm-google-rotas-v11"></script>
+  <script src="js/firebase.js?v=jm-google-rotas-v11"></script>
+  <script src="js/tracker.js?v=jm-google-rotas-v11"></script>
+  <script src="js/superadmin.js?v=jm-google-rotas-v11"></script>
 </body>
 </html>

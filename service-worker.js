@@ -1,4 +1,4 @@
-const CACHE_NAME = "jm-guinchos-v9-login-definitivo";
+const CACHE_NAME = "jm-guinchos-v11-google-rotas";
 const ASSETS = [
   "./",
   "./index.html",
@@ -11,6 +11,7 @@ const ASSETS = [
   "./js/utils.js",
   "./js/firebase.js",
   "./js/tracker.js",
+  "./js/google-maps.js",
   "./js/mapa.js",
   "./js/app.js",
   "./js/motorista.js",
