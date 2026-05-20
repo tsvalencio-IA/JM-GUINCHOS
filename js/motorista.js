@@ -4,7 +4,7 @@
   const { $, esc, money, parseMoney, dateTime, toast, statusClass, routeKm, mapsRouteUrl } = window.JM.utils;
   const { auth, db, arrayUnion } = window.JM.firebase;
   const cfg = window.JM_CONFIG || {};
-  const DRIVER_FLOW_VERSION = "jm-google-rotas-v11";
+  const DRIVER_FLOW_VERSION = "jm-free-tracker-v12";
   const state = { user: null, profile: null, calls: {}, vehicles: {}, expenses: {}, settings: {} };
   const unsubscribers = [];
 
@@ -19,9 +19,28 @@
   }
 
   async function loadProfile(user) {
-    const snap = await db.collection("users").doc(user.uid).get();
-    if (!snap.exists || snap.data().active === false) throw new Error("Seu usuário não está ativo no cadastro da JM Guinchos.");
-    return { id: user.uid, ...snap.data() };
+    const ref = db.collection("users").doc(user.uid);
+    const snap = await ref.get();
+    if (snap.exists) {
+      if (snap.data().active === false) throw new Error("Seu usuário não está ativo no cadastro da JM Guinchos.");
+      return { id: user.uid, ...snap.data() };
+    }
+
+    // Reparo para e-mail criado no Auth antes de existir users/{uid}.
+    const byEmail = await db.collection("users").where("email", "==", String(user.email || "").toLowerCase()).limit(1).get();
+    if (!byEmail.empty) {
+      const doc = byEmail.docs[0];
+      const data = doc.data() || {};
+      if (data.active === false) throw new Error("Seu usuário não está ativo no cadastro da JM Guinchos.");
+      const repaired = Object.assign({}, data, {
+        uid: user.uid,
+        email: user.email,
+        repairedUidAt: new Date().toISOString()
+      });
+      await ref.set(repaired, { merge: true });
+      return { id: user.uid, ...repaired };
+    }
+    throw new Error("Seu usuário ainda não está cadastrado na equipe da JM Guinchos.");
   }
 
   function startListeners() {
@@ -102,7 +121,7 @@
         </div>
         <p class="small"><b>Origem:</b> ${esc(call.origem?.label || call.originLabel || "-")}<br><b>Destino:</b> ${esc(call.destino?.label || call.destLabel || "-")}<br><b>Rota:</b> ${km ? km.toFixed(1).replace(".", ",") + " km estimados" : "aguardando coordenadas"}<br><b>Valor previsto:</b> ${money(call.valor || 0)}</p>
         <div class="actions">
-          ${url ? `<a class="btn good" target="_blank" href="${esc(url)}">Abrir rota Google</a>` : ""}
+          ${url ? `<a class="btn good" target="_blank" href="${esc(url)}">Abrir rota no Maps</a>` : ""}
           <button class="btn primary" onclick="JM.motorista.setStatus('${esc(call.id)}','Em Atendimento')">Iniciar</button>
           <button class="btn" onclick="JM.motorista.setStatus('${esc(call.id)}','Finalizado')">Finalizar</button>
         </div>

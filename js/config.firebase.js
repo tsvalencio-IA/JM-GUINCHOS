@@ -1,6 +1,8 @@
 /*
  * JM Guinchos - configuracao central
- * Preencha este arquivo antes de publicar em GitHub Pages, PWA ou APK.
+ * Frontend estatico: qualquer dado neste arquivo fica visivel no GitHub Pages.
+ * Para operacao profissional, restrinja o token do rastreador no painel do fornecedor
+ * e troque o token sempre que suspeitar de exposicao.
  */
 window.JM_CONFIG = {
   firebaseConfig: {
@@ -13,13 +15,11 @@ window.JM_CONFIG = {
   },
   empresa: {
     nome: "JM Guinchos",
-    cidadeBase: "São José do Rio Preto - SP",
+    cidadeBase: "Sao Jose do Rio Preto - SP",
     telefoneOperacional: "(17) 99651-9832",
     moeda: "BRL"
   },
   auth: {
-    // E-mails que podem acessar o jm.html e o superadmin.html.
-    // Adicione aqui o e-mail real do dono/gestor antes de publicar.
     adminEmails: [
       "jmguinchos@ts.com",
       "tsvalencio@gmail.com"
@@ -28,24 +28,21 @@ window.JM_CONFIG = {
       "jmguinchos@ts.com",
       "tsvalencio@gmail.com"
     ],
-    // Correção do fluxo: se um e-mail gestor ficou salvo por engano como motorista,
-    // o jm.html tenta reparar o perfil para admin em vez de mandar para motorista.html.
     autoRepairGestorLogin: true
   },
-  googleMaps: {
-    // Preencha pelo superadmin para ativar endereço Google, geocodificação, autocomplete e rota inteligente.
-    // APIs recomendadas no Google Cloud: Maps JavaScript API, Places API e Geocoding API.
-    apiKey: "",
-    language: "pt-BR",
-    region: "BR",
+  map: {
+    provider: "leaflet_osm",
+    paidApi: false,
     country: "br",
     center: { lat: -20.8113, lng: -49.3758 },
-    radiusMeters: 90000
+    radiusMeters: 90000,
+    averageSpeedKmH: 48
   },
   tracker: {
     platformUrl: "https://gps2.rafacarrastreadores.com.br",
-    endpoint: "",
-    token: "",
+    endpoint: "https://gps2.rafacarrastreadores.com.br/api",
+    socketUrl: "wss://gps2.rafacarrastreadores.com.br/api/socket",
+    token: "RjBEAiBIfZbqwxwwx4sflEv1MKhRihZ9u6D3zDUmThyl4Eli1QIgNwK-0XsQUZqgb9YZzZLVrU1bVYVQbri_07sv290x9LV7InUiOjI1LCJlIjoiMjAyNi0xMS0xMFQwMDozODoxMy4zNDkrMDA6MDAifQ",
     tokenHeader: "Authorization",
     tokenPrefix: "Bearer ",
     pollingMs: 30000,

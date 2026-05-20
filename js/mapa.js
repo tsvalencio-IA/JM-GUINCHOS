@@ -43,6 +43,18 @@
     </svg>`;
   }
 
+  const liveMaps = {};
+
+  function resetMap(containerId, container) {
+    if (liveMaps[containerId]) {
+      try { liveMaps[containerId].remove(); } catch (_) {}
+      delete liveMaps[containerId];
+    }
+    if (container && container._leaflet_id) {
+      try { container._leaflet_id = null; } catch (_) {}
+    }
+  }
+
   async function renderFleetMap(containerId, vehicles, calls) {
     const container = document.getElementById(containerId);
     if (!container) return;
@@ -53,6 +65,7 @@
       pts: callRoutePoints(call, vehicles && vehicles[call.vehicleId])
     })).filter((row) => row.pts.length);
     if (!located.length && !routedCalls.length) {
+      resetMap(containerId, container);
       container.innerHTML = `<div style="height:100%;display:grid;place-items:center;padding:24px;text-align:center;background:#07111f">
         <div>
           <h3>Mapa aguardando dados reais</h3>
@@ -63,8 +76,10 @@
     }
     try {
       const L = await loadLeaflet();
+      resetMap(containerId, container);
       container.innerHTML = "";
       const map = L.map(containerId, { scrollWheelZoom: false });
+      liveMaps[containerId] = map;
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "&copy; OpenStreetMap"
@@ -91,6 +106,7 @@
       setTimeout(() => map.invalidateSize(), 120);
     } catch (err) {
       console.warn(err);
+      resetMap(containerId, container);
       fallbackSvg(container, vehicles, calls);
     }
   }

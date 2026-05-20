@@ -1,168 +1,96 @@
 (function () {
   "use strict";
 
-  const cfg = window.JM_CONFIG || {};
-  const { coords, haversineKm } = window.JM.utils || {};
-  let loadPromise = null;
-  let loadedKey = "";
-  const autocompleteInstances = {};
+  const { coords, pointFrom, haversineKm } = window.JM.utils;
+  const DEFAULT_SPEED_KMH = 48;
 
-  function activeConfig(settings) {
-    return Object.assign({
-      apiKey: "",
-      language: "pt-BR",
-      region: "BR",
-      country: "br",
-      center: { lat: -20.8113, lng: -49.3758 },
-      radiusMeters: 90000
-    }, cfg.googleMaps || {}, settings && settings.googleMaps || {});
+  function toLatLng(value) {
+    const p = pointFrom(value);
+    return p ? { lat: Number(p.lat), lng: Number(p.lng) } : null;
   }
 
-  function apiKey(settings) {
-    return String(activeConfig(settings).apiKey || "").trim();
+  function cleanText(value) {
+    return String(value || "").trim();
   }
 
-  function isConfigured(settings) {
-    return !!apiKey(settings);
+  function decodeSafe(value) {
+    try { return decodeURIComponent(String(value || "")); } catch (_) { return String(value || ""); }
   }
 
-  function load(settings) {
-    const gcfg = activeConfig(settings);
-    const key = apiKey(settings);
-    if (!key) return Promise.reject(new Error("Configure a chave da Google Maps Platform no superadmin."));
-    if (window.google && window.google.maps && window.google.maps.places && loadedKey === key) return Promise.resolve(window.google);
-    if (loadPromise && loadedKey === key) return loadPromise;
-
-    const old = document.getElementById("jm-google-maps-js");
-    if (old) old.remove();
-    loadedKey = key;
-    loadPromise = new Promise((resolve, reject) => {
-      const params = new URLSearchParams({
-        key,
-        libraries: "places",
-        language: gcfg.language || "pt-BR",
-        region: gcfg.region || "BR",
-        v: "weekly"
-      });
-      const script = document.createElement("script");
-      script.id = "jm-google-maps-js";
-      script.src = "https://maps.googleapis.com/maps/api/js?" + params.toString();
-      script.async = true;
-      script.defer = true;
-      script.onload = () => {
-        if (window.google && window.google.maps) resolve(window.google);
-        else reject(new Error("Google Maps carregou, mas o objeto google.maps não ficou disponível."));
-      };
-      script.onerror = () => reject(new Error("Não foi possível carregar o Google Maps. Confira chave, billing, APIs e domínio autorizado."));
-      document.head.appendChild(script);
-    });
-    return loadPromise;
+  function extractCoordinatePair(text) {
+    const raw = decodeSafe(text).replace(/%2C/gi, ",").replace(/\u2212/g, "-");
+    const patterns = [
+      /@(-?\d{1,2}(?:[.,]\d+)?),\s*(-?\d{1,3}(?:[.,]\d+)?)/i,
+      /(?:q|query|ll|center|destination|daddr|saddr)=(-?\d{1,2}(?:[.,]\d+)?),\s*(-?\d{1,3}(?:[.,]\d+)?)/i,
+      /(?:lat|latitude)=(-?\d{1,2}(?:[.,]\d+)?).*?(?:lng|lon|longitude)=(-?\d{1,3}(?:[.,]\d+)?)/i,
+      /(-?\d{1,2}(?:[.,]\d+)?)\s*[,;]\s*(-?\d{1,3}(?:[.,]\d+)?)/,
+      /(-?\d{1,2}(?:[.,]\d+)?)\s+(-?\d{1,3}(?:[.,]\d+)?)/
+    ];
+    for (const pattern of patterns) {
+      const match = raw.match(pattern);
+      if (!match) continue;
+      const point = coords(match[1], match[2]);
+      if (point) return point;
+    }
+    return null;
   }
 
-  function toLatLng(point) {
-    if (!point) return null;
-    if (point.coords) return toLatLng(point.coords);
-    const parsed = coords ? coords(point.lat, point.lng) : null;
-    return parsed ? { lat: Number(parsed.lat), lng: Number(parsed.lng) } : null;
-  }
-
-  function placeToAddress(place, fallbackText) {
-    const loc = place && place.geometry && place.geometry.location;
-    const point = loc ? { lat: loc.lat(), lng: loc.lng() } : null;
+  function parseLocationInput(value, fallbackLabel) {
+    const input = cleanText(value);
+    if (!input) return null;
+    const point = extractCoordinatePair(input);
+    const isUrl = /^https?:\/\//i.test(input) || /maps\.app\.goo\.gl|google\.[^/]+\/maps|waze\.com/i.test(input);
     return {
-      label: place && (place.formatted_address || place.name) || fallbackText || "",
+      label: point ? (fallbackLabel || input) : input,
       coords: point,
-      placeId: place && place.place_id || "",
-      name: place && place.name || "",
-      source: "google_places",
+      source: point ? (isUrl ? "shared_map_link" : "manual_coordinates") : (isUrl ? "shared_link_without_visible_coords" : "manual_text_without_coords"),
+      raw: input,
       resolvedAt: new Date().toISOString()
     };
   }
 
-  function initAutocomplete(inputId, onPlace, settings) {
+  function isConfigured() {
+    return true;
+  }
+
+  async function initAutocomplete(inputId, onSelect) {
     const input = document.getElementById(inputId);
-    if (!input || !isConfigured(settings)) return Promise.resolve(null);
-    if (autocompleteInstances[inputId]) return Promise.resolve(autocompleteInstances[inputId]);
-    return load(settings).then((google) => {
-      const gcfg = activeConfig(settings);
-      const options = {
-        fields: ["formatted_address", "geometry", "name", "place_id"],
-        componentRestrictions: { country: gcfg.country || "br" }
-      };
-      if (gcfg.center && Number.isFinite(Number(gcfg.center.lat)) && Number.isFinite(Number(gcfg.center.lng))) {
-        const circle = new google.maps.Circle({
-          center: { lat: Number(gcfg.center.lat), lng: Number(gcfg.center.lng) },
-          radius: Number(gcfg.radiusMeters || 90000)
-        });
-        options.bounds = circle.getBounds();
-        options.strictBounds = false;
-      }
-      const ac = new google.maps.places.Autocomplete(input, options);
-      ac.addListener("place_changed", () => {
-        const place = ac.getPlace();
-        const address = placeToAddress(place, input.value);
-        if (address.coords && typeof onPlace === "function") onPlace(address);
-      });
-      autocompleteInstances[inputId] = ac;
-      return ac;
+    if (!input) return null;
+    input.setAttribute("autocomplete", "off");
+    input.addEventListener("change", () => {
+      const parsed = parseLocationInput(input.value);
+      if (parsed && parsed.coords && typeof onSelect === "function") onSelect(parsed);
     });
+    return null;
   }
 
-  function geocode(text, settings) {
-    const query = String(text || "").trim();
-    if (!query) return Promise.reject(new Error("Digite um endereço antes de validar."));
-    return load(settings).then((google) => new Promise((resolve, reject) => {
-      const gcfg = activeConfig(settings);
-      const geocoder = new google.maps.Geocoder();
-      geocoder.geocode({
-        address: query,
-        region: gcfg.region || "BR",
-        componentRestrictions: { country: String(gcfg.country || "br").toUpperCase() }
-      }, (results, status) => {
-        if (status !== "OK" || !results || !results[0]) {
-          reject(new Error("Google não encontrou esse endereço. Complete rua, número, bairro e cidade."));
-          return;
-        }
-        resolve(placeToAddress(results[0], query));
-      });
-    }));
+  async function geocode(text) {
+    const parsed = parseLocationInput(text);
+    if (!parsed || !parsed.coords) {
+      throw new Error("Cole um link do mapa que mostre latitude/longitude ou informe no formato -20.851076,-49.398946. Links curtos do Google nem sempre trazem coordenadas visíveis.");
+    }
+    return parsed;
   }
 
-  function route(origin, destination, settings) {
-    const start = toLatLng(origin);
-    const end = toLatLng(destination);
-    if (!start || !end) return Promise.reject(new Error("Origem e destino precisam de latitude/longitude."));
-    return load(settings).then((google) => new Promise((resolve, reject) => {
-      const service = new google.maps.DirectionsService();
-      service.route({
-        origin: start,
-        destination: end,
-        travelMode: google.maps.TravelMode.DRIVING,
-        drivingOptions: {
-          departureTime: new Date(),
-          trafficModel: google.maps.TrafficModel.BEST_GUESS
-        }
-      }, (result, status) => {
-        if (status !== "OK" || !result || !result.routes || !result.routes[0]) {
-          reject(new Error("Google não conseguiu traçar a rota: " + status));
-          return;
-        }
-        const leg = result.routes[0].legs && result.routes[0].legs[0] || {};
-        resolve({
-          source: "google_directions",
-          distanceMeters: leg.distance && leg.distance.value || 0,
-          distanceText: leg.distance && leg.distance.text || "",
-          durationSeconds: leg.duration && leg.duration.value || 0,
-          durationText: leg.duration && leg.duration.text || "",
-          durationTrafficSeconds: leg.duration_in_traffic && leg.duration_in_traffic.value || 0,
-          durationTrafficText: leg.duration_in_traffic && leg.duration_in_traffic.text || "",
-          startAddress: leg.start_address || "",
-          endAddress: leg.end_address || "",
-          summary: result.routes[0].summary || "",
-          calculatedAt: new Date().toISOString()
-        });
-      });
-    }));
+  function estimateRoute(a, b, label) {
+    const p1 = toLatLng(a);
+    const p2 = toLatLng(b);
+    if (!p1 || !p2) return null;
+    const km = haversineKm(p1, p2);
+    const roadFactor = 1.28;
+    const roadKm = km * roadFactor;
+    const minutes = Math.max(1, Math.round((roadKm / DEFAULT_SPEED_KMH) * 60));
+    return {
+      source: "free_leaflet_haversine",
+      label: label || "estimativa gratuita",
+      distanceMeters: Math.round(roadKm * 1000),
+      distanceText: roadKm.toFixed(1).replace(".", ",") + " km estimados",
+      durationSeconds: minutes * 60,
+      durationText: minutes + " min estimados",
+      durationTrafficText: minutes + " min estimados",
+      start: p1,
+      end: p2
+    };
   }
 
   function routeUrl(points) {
@@ -175,65 +103,47 @@
     return "https://www.google.com/maps/dir/?" + params.toString();
   }
 
-  async function routeSummary(origin, destination, settings) {
-    try {
-      return await route(origin, destination, settings);
-    } catch (err) {
-      const a = toLatLng(origin);
-      const b = toLatLng(destination);
-      const km = a && b && haversineKm ? haversineKm(a, b) : 0;
-      return {
-        source: "fallback_haversine",
-        distanceMeters: Math.round(km * 1000),
-        distanceText: km ? km.toFixed(1).replace(".", ",") + " km em linha reta" : "",
-        durationSeconds: km ? Math.round((km / 45) * 3600) : 0,
-        durationText: km ? Math.max(1, Math.round((km / 45) * 60)) + " min estimado" : "",
-        warning: err && err.message || "Rota Google indisponível."
-      };
-    }
+  function statusPenalty(vehicle) {
+    const status = String(vehicle && vehicle.status || "").toLowerCase();
+    if (status.includes("manut") || status.includes("indispon")) return 100000;
+    if (status.includes("atendimento") || status.includes("ocup")) return 1000;
+    return 0;
   }
 
-  async function rankVehicles(vehicles, origin, destination, settings) {
-    const callOrigin = toLatLng(origin);
-    const callDest = toLatLng(destination);
+  async function rankVehicles(vehicles, origin, destination) {
+    const target = toLatLng(origin);
+    if (!target) throw new Error("Origem sem coordenadas para calcular a rota.");
     const located = Object.values(vehicles || {}).filter((v) => toLatLng(v.location));
-    const rows = [];
-    for (const vehicle of located) {
+    const rankings = located.map((vehicle) => {
       const vPoint = toLatLng(vehicle.location);
-      const toOrigin = await routeSummary(vPoint, callOrigin, settings);
-      const serviceRoute = callDest ? await routeSummary(callOrigin, callDest, settings) : null;
-      const status = String(vehicle.status || "").toLowerCase();
-      const statusPenalty = status.includes("manutenção") || status.includes("indispon") ? 9999 : status.includes("atendimento") ? 45 : 0;
-      const minutesToOrigin = Math.round(((toOrigin.durationTrafficSeconds || toOrigin.durationSeconds || 0) / 60));
-      const kmToOrigin = (toOrigin.distanceMeters || 0) / 1000;
-      const totalKm = kmToOrigin + (serviceRoute ? (serviceRoute.distanceMeters || 0) / 1000 : 0);
-      const score = minutesToOrigin + statusPenalty + (kmToOrigin * 0.35);
-      rows.push({
+      const toOrigin = estimateRoute(vPoint, target, "Veículo até origem");
+      const serviceRoute = destination ? estimateRoute(target, destination, "Origem até destino") : null;
+      const score = (toOrigin ? toOrigin.durationSeconds : 999999) + statusPenalty(vehicle);
+      return {
         vehicle,
         toOrigin,
         serviceRoute,
-        kmToOrigin,
-        totalKm,
-        minutesToOrigin,
-        statusPenalty,
+        kmToOrigin: toOrigin ? toOrigin.distanceMeters / 1000 : 0,
+        minutesToOrigin: toOrigin ? Math.round(toOrigin.durationSeconds / 60) : 0,
         score,
-        routeUrl: routeUrl(callDest ? [vPoint, callOrigin, callDest] : [vPoint, callOrigin])
-      });
-    }
-    return rows.sort((a, b) => a.score - b.score);
+        routeUrl: routeUrl([vPoint, target, destination].filter(Boolean))
+      };
+    }).sort((a, b) => a.score - b.score);
+    return rankings;
   }
 
   window.JM = window.JM || {};
-  window.JM.googleMaps = {
-    activeConfig,
+  window.JM.freeRouter = {
+    parseLocationInput,
+    extractCoordinatePair,
     isConfigured,
-    load,
     initAutocomplete,
     geocode,
-    route,
-    routeSummary,
-    routeUrl,
+    estimateRoute,
     rankVehicles,
-    toLatLng
+    routeUrl
   };
+  // Compatibilidade com a versão v11: o app ainda chama JM.googleMaps,
+  // mas nesta versão não carrega API paga. Tudo é gratuito: Leaflet + OSM + coordenadas/link compartilhado.
+  window.JM.googleMaps = window.JM.freeRouter;
 }());

@@ -7,6 +7,21 @@
   let settings = {};
   let vehicles = {};
 
+
+
+  function mergeNonEmpty(base, override) {
+    const out = Object.assign({}, base || {});
+    Object.entries(override || {}).forEach(([key, value]) => {
+      if (value === "" || value == null) return;
+      if (value && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date)) {
+        out[key] = Object.assign({}, out[key] || {}, value);
+      } else {
+        out[key] = value;
+      }
+    });
+    return out;
+  }
+
   function friendlyAuthError(err) {
     const code = err && err.code || "";
     if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "Usuário ou senha inválidos.";
@@ -23,7 +38,7 @@
       uid: user.uid,
       email: user.email,
       nome: user.displayName || user.email.split("@")[0],
-      role: "admin",
+      role: "superadmin",
       active: true,
       updatedAt: ts()
     };
@@ -94,12 +109,13 @@
   }
 
   function renderSettings() {
-    const tracker = Object.assign({}, cfg.tracker || {}, settings.tracker || {});
-    const cloud = Object.assign({}, cfg.cloudinary || {}, settings.cloudinary || {});
-    const googleMaps = Object.assign({}, cfg.googleMaps || {}, settings.googleMaps || {});
+    const tracker = mergeNonEmpty(cfg.tracker || {}, settings.tracker || {});
+    const cloud = mergeNonEmpty(cfg.cloudinary || {}, settings.cloudinary || {});
+    const googleMaps = mergeNonEmpty(mergeNonEmpty(cfg.map || {}, cfg.googleMaps || {}), mergeNonEmpty(settings.map || {}, settings.googleMaps || {}));
     $("trackerPlatform").value = tracker.platformUrl || "";
     $("trackerEndpoint").value = tracker.endpoint || "";
     $("trackerToken").value = tracker.token || "";
+    if ($("trackerSocket")) $("trackerSocket").value = tracker.socketUrl || "";
     $("trackerHeader").value = tracker.tokenHeader || "Authorization";
     $("trackerPrefix").value = tracker.tokenPrefix || "Bearer ";
     $("trackerPolling").value = tracker.pollingMs || 30000;
@@ -138,7 +154,7 @@
     batch.set(db.collection("settings").doc("integrations"), {
       tracker: Object.assign({}, cfg.tracker || {}, settings.tracker || {}, { vehicles: currentVehicles() }),
       cloudinary: Object.assign({}, cfg.cloudinary || {}, settings.cloudinary || {}),
-      googleMaps: Object.assign({}, cfg.googleMaps || {}, settings.googleMaps || {}),
+      map: Object.assign({}, cfg.map || {}, settings.map || {}),
       updatedAt: now
     }, { merge: true });
     await batch.commit();
@@ -146,7 +162,7 @@
   }
 
   async function syncTracker() {
-    const tracker = Object.assign({}, cfg.tracker || {}, settings.tracker || {}, { vehicles: currentVehicles() });
+    const tracker = Object.assign({}, mergeNonEmpty(cfg.tracker || {}, settings.tracker || {}), { vehicles: currentVehicles() });
     if (!tracker.endpoint || !tracker.token) {
       toast("Configure endpoint e token do Tracker antes de sincronizar.", "danger");
       return;
@@ -177,6 +193,7 @@
       tracker: {
         platformUrl: $("trackerPlatform").value.trim(),
         endpoint: $("trackerEndpoint").value.trim(),
+        socketUrl: $("trackerSocket") ? $("trackerSocket").value.trim() : "",
         token: $("trackerToken").value.trim(),
         tokenHeader: $("trackerHeader").value.trim() || "Authorization",
         tokenPrefix: $("trackerPrefix").value,
@@ -213,8 +230,9 @@
   $("superGoogleMapsForm").onsubmit = async (e) => {
     e.preventDefault();
     await db.collection("settings").doc("integrations").set({
-      googleMaps: {
-        apiKey: $("superGoogleMapsKey").value.trim(),
+      map: {
+        provider: "leaflet_osm",
+        paidApi: false,
         language: $("superGoogleMapsLanguage").value.trim() || "pt-BR",
         region: $("superGoogleMapsRegion").value.trim() || "BR",
         country: "br",
@@ -222,24 +240,38 @@
           lat: Number(String($("superGoogleMapsCenterLat").value || "-20.8113").replace(",", ".")),
           lng: Number(String($("superGoogleMapsCenterLng").value || "-49.3758").replace(",", "."))
         },
-        radiusMeters: Number($("superGoogleMapsRadius").value || 90000)
+        radiusMeters: Number($("superGoogleMapsRadius").value || 90000),
+        averageSpeedKmH: 48
       },
       updatedAt: new Date().toISOString()
     }, { merge: true });
-    toast("Google Maps salvo. O jm.html usará endereço validado, autocomplete e rota inteligente.", "ok");
+    toast("Mapa gratuito salvo. O jm.html usará link/coordenadas e rota inteligente sem API paga.", "ok");
   };
+
+  function normalizedRole(role) {
+    return String(role || "").toLowerCase().trim();
+  }
+
+  function isOfficeRole(role) {
+    return ["admin", "gestor", "gerente", "auxiliar", "finance", "superadmin", "manager"].includes(normalizedRole(role));
+  }
+
+  function roleLabel(role) {
+    return ({ admin: "Gestor/Admin", gestor: "Gestor", gerente: "Gerente", auxiliar: "Auxiliar", driver: "Motorista", motorista: "Motorista", finance: "Financeiro" })[normalizedRole(role)] || role || "Usuário";
+  }
 
   $("adminUserForm").onsubmit = async (e) => {
     e.preventDefault();
     const email = $("adminEmail").value.trim().toLowerCase();
     const pass = $("adminPass").value;
     const nome = $("adminName").value.trim();
+    const role = normalizedRole($("adminRole") ? $("adminRole").value : "admin") || "admin";
     if (!pass || pass.length < 6) return toast("Senha mínima: 6 caracteres.", "danger");
 
-    const managerPayload = {
+    const userPayload = {
       nome,
       email,
-      role: "admin",
+      role,
       active: true,
       updatedAt: new Date().toISOString(),
       updatedBy: auth.currentUser && auth.currentUser.uid || "",
@@ -247,21 +279,16 @@
     };
 
     try {
-      // Registro por e-mail: esta é a proteção definitiva para o gestor nunca virar motorista.
-      // Mesmo que o UID já exista no Auth ou tenha sido salvo antes como driver, o jm.html
-      // consegue ler managerAccess/{email} e reparar users/{uid} para admin no primeiro login.
-      await db.collection("managerAccess").doc(email).set(Object.assign({ createdAt: new Date().toISOString() }, managerPayload), { merge: true });
+      if (isOfficeRole(role)) {
+        await db.collection("managerAccess").doc(email).set(Object.assign({ createdAt: new Date().toISOString() }, userPayload), { merge: true });
+      }
 
-      // Corrige imediatamente qualquer documento antigo em users que tenha esse e-mail
-      // salvo por engano como driver/motorista, inclusive quando o ID do documento não é o UID real.
       const oldUsers = await db.collection("users").where("email", "==", email).get();
       if (!oldUsers.empty) {
         const batch = db.batch();
         oldUsers.forEach((doc) => {
-          batch.set(doc.ref, Object.assign({}, managerPayload, {
-            role: "admin",
+          batch.set(doc.ref, Object.assign({}, userPayload, {
             active: true,
-            fixedFromRole: "driver/motorista",
             fixedAt: new Date().toISOString()
           }), { merge: true });
         });
@@ -275,25 +302,21 @@
       } catch (err) {
         if (!(err && err.code === "auth/email-already-in-use")) throw err;
         e.target.reset();
-        toast("Este e-mail já existia no Auth. Ele foi liberado como gestor; ao entrar no jm.html o perfil será corrigido para admin. Se a senha não for essa, redefina no Firebase Authentication.", "ok");
+        toast("Este e-mail já existia no Auth. O perfil " + roleLabel(role) + " foi salvo/liberado; no primeiro login o sistema repara o UID se precisar.", "ok");
         return;
       }
 
-      await db.collection("users").doc(cred.user.uid).set({
+      await db.collection("users").doc(cred.user.uid).set(Object.assign({}, userPayload, {
         uid: cred.user.uid,
-        nome,
-        email,
-        role: "admin",
-        active: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        createdBy: auth.currentUser && auth.currentUser.uid || "",
-        source: "superadmin-adminUserForm"
-      }, { merge: true });
+        createdBy: auth.currentUser && auth.currentUser.uid || ""
+      }), { merge: true });
       e.target.reset();
-      toast("Gestor criado como ADMIN no Auth, em managerAccess e em users. Não será cadastrado como motorista.", "ok");
+      toast(roleLabel(role) + " criado no Auth e salvo na equipe.", "ok");
     } catch (err) {
       toast(friendlyAuthError(err), "danger");
     }
   };
+
 }());
