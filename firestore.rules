@@ -16,64 +16,76 @@ service cloud.firestore {
     function profile() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
-    function isAdmin() {
-      return signedIn() && profile().active != false && profile().role in ['admin', 'finance', 'superadmin', 'gestor'];
+    function isManager() {
+      return signedIn()
+        && profile().active != false
+        && profile().role in ['admin', 'finance', 'superadmin', 'gestor', 'gerente', 'manager'];
+    }
+    function isOffice() {
+      return signedIn()
+        && profile().active != false
+        && profile().role in ['admin', 'finance', 'superadmin', 'gestor', 'gerente', 'manager', 'auxiliar'];
     }
     function isDriver() {
-      return signedIn() && profile().active != false && profile().role in ['driver', 'motorista', 'admin', 'finance', 'superadmin', 'gestor'];
+      return signedIn()
+        && profile().active != false
+        && profile().role in ['driver', 'motorista'];
     }
     function managerPermit() {
       return signedIn()
         && exists(/databases/$(database)/documents/managerAccess/$(email()))
         && get(/databases/$(database)/documents/managerAccess/$(email())).data.active != false
-        && get(/databases/$(database)/documents/managerAccess/$(email())).data.role in ['admin', 'finance', 'superadmin', 'gestor'];
+        && get(/databases/$(database)/documents/managerAccess/$(email())).data.role in ['admin', 'finance', 'superadmin', 'gestor', 'gerente', 'manager', 'auxiliar'];
     }
-    function ownAdminRepair(uid) {
+    function ownOfficeRepair(uid) {
       return signedIn()
         && request.auth.uid == uid
         && (bootstrapAdminEmail() || managerPermit())
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.email == email()
         && request.resource.data.active == true
-        && request.resource.data.role in ['admin', 'finance'];
+        && request.resource.data.role in ['admin', 'finance', 'gestor', 'gerente', 'auxiliar'];
     }
 
     match /users/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
-      allow create: if signedIn() && (request.auth.uid == uid || isAdmin() || ownAdminRepair(uid));
-      allow update: if isAdmin() || ownAdminRepair(uid);
-      allow delete: if isAdmin();
+      allow read: if signedIn() && (request.auth.uid == uid || resource.data.email == email() || isOffice() || isManager());
+      allow create: if signedIn() && (request.auth.uid == uid || isManager() || ownOfficeRepair(uid));
+      allow update: if isManager() || ownOfficeRepair(uid) || request.auth.uid == uid;
+      allow delete: if isManager();
     }
 
     match /managerAccess/{emailId} {
-      allow read: if signedIn() && (emailId == email() || isAdmin() || bootstrapAdminEmail());
-      allow create, update, delete: if isAdmin() || bootstrapAdminEmail();
+      allow read: if signedIn() && (emailId == email() || isManager() || bootstrapAdminEmail());
+      allow create, update, delete: if isManager() || bootstrapAdminEmail();
     }
 
     match /vehicles/{id} {
-      allow read: if isDriver();
-      allow write: if isAdmin();
+      allow read: if isOffice() || isDriver();
+      allow create, update: if isManager();
+      allow delete: if isManager();
     }
 
     match /calls/{id} {
-      allow read: if isAdmin() || (isDriver() && resource.data.driverId == request.auth.uid);
-      allow create, update, delete: if isAdmin();
+      allow read: if isOffice() || (isDriver() && resource.data.driverId == request.auth.uid);
+      allow create: if isOffice();
+      allow update: if isOffice() || (isDriver() && resource.data.driverId == request.auth.uid);
+      allow delete: if isManager();
     }
 
     match /expenses/{id} {
-      allow read: if isAdmin() || (isDriver() && resource.data.driverId == request.auth.uid);
+      allow read: if isManager() || (isDriver() && resource.data.driverId == request.auth.uid);
       allow create: if isDriver() && request.resource.data.driverId == request.auth.uid;
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow update: if isManager();
+      allow delete: if isManager();
     }
 
     match /transactions/{id} {
-      allow read, write: if isAdmin();
+      allow read, write: if isManager();
     }
 
     match /settings/{id} {
-      allow read: if isAdmin();
-      allow write: if isAdmin();
+      allow read: if isOffice() || isManager();
+      allow write: if isManager();
     }
   }
 }

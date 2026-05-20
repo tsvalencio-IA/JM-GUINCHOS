@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#07111f">
   <title>JM Guinchos - Gestor</title>
-  <link rel="manifest" href="manifest.json?v=jm-google-rotas-v11">
+  <link rel="manifest" href="manifest.json?v=jm-free-tracker-v12">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/style.css?v=jm-google-rotas-v11">
+  <link rel="stylesheet" href="css/style.css?v=jm-free-tracker-v12">
 </head>
 <body>
   <section id="loginView" class="login">
@@ -61,7 +61,7 @@
           <button class="btn mobile-top" id="menuBtn">Menu</button>
           <div>
             <h2 id="pageTitle" style="margin:0">Dashboard</h2>
-            <div class="muted small" id="trackerStatus">Tracker aguardando configuração no superadmin</div>
+            <div class="muted small" id="trackerStatus">Tracker RAFA aguardando sincronização</div>
           </div>
         </div>
       </header>
@@ -97,22 +97,22 @@
                 <div><label>Motorista</label><select id="callDriver"></select></div>
                 <div class="wide geo-block">
                   <label>Origem / local do veículo</label>
-                  <input id="callOriginLabel" placeholder="Digite o endereço e selecione a sugestão do Google">
+                  <input id="callOriginLabel" placeholder="Cole link do Google Maps/Waze ou -20.851076,-49.398946">
                   <div class="geo-actions">
-                    <button class="btn" id="btnGeocodeOrigin" type="button">Validar origem no Google</button>
+                    <button class="btn" id="btnGeocodeOrigin" type="button">Ler origem do link/coordenada</button>
                     <button class="btn" id="btnUseCurrentLocation" type="button">Usar localização atual</button>
                   </div>
-                  <div id="originGeoStatus" class="small muted geo-status">Aguardando endereço validado pelo Google.</div>
+                  <div id="originGeoStatus" class="small muted geo-status">Aguardando link do mapa ou coordenadas.</div>
                 </div>
                 <div><label>Origem lat</label><input id="callOriginLat" inputmode="decimal" placeholder="automático"></div>
                 <div><label>Origem lng</label><input id="callOriginLng" inputmode="decimal" placeholder="automático"></div>
                 <div class="wide geo-block">
                   <label>Destino</label>
-                  <input id="callDestLabel" placeholder="Destino, pátio, oficina ou cliente">
+                  <input id="callDestLabel" placeholder="Cole link do destino ou -20.851076,-49.398946">
                   <div class="geo-actions">
-                    <button class="btn" id="btnGeocodeDest" type="button">Validar destino no Google</button>
+                    <button class="btn" id="btnGeocodeDest" type="button">Ler destino do link/coordenada</button>
                   </div>
-                  <div id="destGeoStatus" class="small muted geo-status">Destino opcional, mas recomendado para rota completa.</div>
+                  <div id="destGeoStatus" class="small muted geo-status">Destino opcional; pode ser link compartilhado ou coordenadas.</div>
                 </div>
                 <div><label>Destino lat</label><input id="callDestLat" inputmode="decimal" placeholder="automático"></div>
                 <div><label>Destino lng</label><input id="callDestLng" inputmode="decimal" placeholder="automático"></div>
@@ -120,14 +120,14 @@
                   <div class="actions" style="justify-content:space-between;align-items:center">
                     <div>
                       <b>Rota inteligente</b>
-                      <div class="muted small">Calcula o melhor veículo pela posição real do tracker + endereço validado.</div>
+                      <div class="muted small">Calcula o melhor veículo pela posição real do Tracker + link/coordenadas, sem API paga.</div>
                     </div>
                     <div class="actions">
                       <button class="btn good" id="btnSmartRoute" type="button">Traçar rota inteligente</button>
-                      <button class="btn" id="btnOpenGoogleRoute" type="button">Abrir no Google Maps</button>
+                      <button class="btn" id="btnOpenGoogleRoute" type="button">Abrir rota no Maps</button>
                     </div>
                   </div>
-                  <div id="smartRouteBox" class="smart-route-box small muted">Configure a chave Google Maps no superadmin para usar autocomplete, geocodificação e tempo de rota real. Sem chave, o sistema usa estimativa simples por coordenadas.</div>
+                  <div id="smartRouteBox" class="smart-route-box small muted">Modo gratuito: use link compartilhado do mapa ou coordenadas. O algoritmo usa Tracker RAFA + distância estimada no Leaflet/OpenStreetMap.</div>
                 </div>
                 <div class="wide"><label>Observações</label><textarea id="callNotes"></textarea></div>
                 <button class="btn primary wide" type="submit">Registrar chamado</button>
@@ -144,7 +144,8 @@
           <div class="grid">
             <div class="panel col-12">
               <h2>Rastreamento e rotas</h2>
-              <p class="muted small">O mapa aparece com posições reais quando o superadmin configurar endpoint, token e IDs dos rastreadores.</p>
+              <p class="muted small">Mapa gratuito Leaflet/OpenStreetMap. O sistema usa o Tracker RAFA para posicionar a frota e calcular o veículo mais próximo.</p>
+              <div class="actions" style="margin-bottom:10px"><button class="btn primary" id="btnSyncTrackerNow" type="button">Atualizar Tracker agora</button><a class="btn" target="_blank" href="https://gps2.rafacarrastreadores.com.br">Abrir plataforma RAFA</a></div>
               <div id="fleetMap" class="map"></div>
             </div>
             <div class="panel col-12">
@@ -198,14 +199,14 @@
         <section id="view-equipe" class="view">
           <div class="grid">
             <div class="panel col-4">
-              <h2>Cadastrar motorista</h2>
+              <h2>Cadastrar equipe</h2>
               <form id="teamForm" class="form-grid">
                 <div class="wide"><label>Nome</label><input id="teamName" required></div>
                 <div class="wide"><label>E-mail</label><input id="teamEmail" type="email" required></div>
                 <div><label>Senha inicial</label><input id="teamPass" type="password" autocomplete="new-password" placeholder="mínimo 6 caracteres"></div>
-                <input id="teamRole" type="hidden" value="driver">
+                <div><label>Perfil</label><select id="teamRole"><option value="driver">Motorista</option><option value="auxiliar">Auxiliar</option><option value="gerente">Gerente</option><option value="admin">Gestor/Admin</option><option value="finance">Financeiro</option></select></div>
                 <div><label>Ativo</label><select id="teamActive"><option value="true">Sim</option><option value="false">Não</option></select></div>
-                <button class="btn primary wide" type="submit">Criar/atualizar motorista</button>
+                <button class="btn primary wide" type="submit">Criar/atualizar equipe</button>
               </form>
             </div>
             <div class="panel col-8">
@@ -221,15 +222,15 @@
   <footer class="signature-footer">Powered by thIAguinho Soluções Digitais</footer>
   <div id="toast" class="toast"></div>
 
-  <script src="js/config.firebase.js?v=jm-google-rotas-v11"></script>
+  <script src="js/config.firebase.js?v=jm-free-tracker-v12"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="js/utils.js?v=jm-google-rotas-v11"></script>
-  <script src="js/firebase.js?v=jm-google-rotas-v11"></script>
-  <script src="js/tracker.js?v=jm-google-rotas-v11"></script>
-  <script src="js/google-maps.js?v=jm-google-rotas-v11"></script>
-  <script src="js/mapa.js?v=jm-google-rotas-v11"></script>
-  <script src="js/app.js?v=jm-google-rotas-v11"></script>
+  <script src="js/utils.js?v=jm-free-tracker-v12"></script>
+  <script src="js/firebase.js?v=jm-free-tracker-v12"></script>
+  <script src="js/tracker.js?v=jm-free-tracker-v12"></script>
+  <script src="js/google-maps.js?v=jm-free-tracker-v12"></script>
+  <script src="js/mapa.js?v=jm-free-tracker-v12"></script>
+  <script src="js/app.js?v=jm-free-tracker-v12"></script>
 </body>
 </html>

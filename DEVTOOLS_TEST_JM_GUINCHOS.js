@@ -1,33 +1,23 @@
-/*
- * JM Guinchos - smoke test para DevTools.
- * Abra index.html, faça login e cole este arquivo no Console.
- */
-(async function jmGuinchosSmoke() {
-  "use strict";
-  const out = [];
-  const ok = (nome, detalhe) => out.push({ status: "OK", nome, detalhe: detalhe || "" });
-  const fail = (nome, detalhe) => out.push({ status: "FALHA", nome, detalhe: detalhe || "" });
-  const warn = (nome, detalhe) => out.push({ status: "ATENCAO", nome, detalhe: detalhe || "" });
-  const has = (id) => !!document.getElementById(id);
-  const fn = (path) => path.split(".").reduce((acc, k) => acc && acc[k], window);
+(function () {
+  const ok = (name) => console.log("✅", name);
+  const fail = (name, msg) => console.error("❌", name, msg || "falhou");
+  const warn = (name, msg) => console.warn("⚠️", name, msg || "atenção");
+  const fn = (path) => path.split(".").reduce((acc, key) => acc && acc[key], window);
 
-  window.firebase ? ok("Firebase SDK carregado") : fail("Firebase SDK carregado");
-  window.JM_CONFIG ? ok("Config JM carregado") : fail("Config JM carregado");
-  fn("JM.firebase.db") ? ok("Firestore inicializado") : fail("Firestore inicializado");
-  fn("JM.tracker.syncTrackerToFirestore") ? ok("Adaptador Tracker") : fail("Adaptador Tracker");
-  fn("JM.mapa.renderFleetMap") ? ok("Motor de mapa") : fail("Motor de mapa");
-  fn("JM.googleMaps.rankVehicles") ? ok("Motor Google/rota inteligente") : fail("Motor Google/rota inteligente");
-  ["loginView","appView","dashboardMap","fleetMap","callForm","callOriginLabel","btnSmartRoute","smartRouteBox","financeForm","vehicleForm","teamForm"].forEach((id) => has(id) ? ok("Elemento #" + id) : fail("Elemento #" + id));
-  const tracker = window.JM_CONFIG && window.JM_CONFIG.tracker || {};
-  tracker.vehicles && tracker.vehicles.FHA4B30 ? ok("Veículo FHA4B30 configurado") : fail("Veículo FHA4B30 configurado");
-  tracker.vehicles && tracker.vehicles.DAJ6J95 ? ok("Veículo DAJ6J95 configurado") : fail("Veículo DAJ6J95 configurado");
-  tracker.endpoint ? ok("Endpoint Tracker configurado") : warn("Endpoint Tracker configurado", "Sem endpoint, sistema usa posições demonstrativas ate preencher config.firebase.js.");
-  tracker.token ? ok("Token Tracker configurado") : warn("Token Tracker configurado", "Sem token, sincronização real depende do superadmin/config.firebase.js.");
-  const gm = window.JM_CONFIG && window.JM_CONFIG.googleMaps || {};
-  gm.apiKey ? ok("Google Maps API key configurada") : warn("Google Maps API key configurada", "Sem chave, autocomplete/geocoding não ativa; rota usa fallback por coordenadas.");
-  console.table(out);
-  const falhas = out.filter((x) => x.status === "FALHA").length;
-  const atencoes = out.filter((x) => x.status === "ATENCAO").length;
-  console.log(`JM Guinchos: ${out.length} verificações, ${falhas} falha(s), ${atencoes} atenção(ões).`);
-  return { falhas, atencoes, detalhes: out };
+  console.log("JM Guinchos v12 - teste rápido");
+
+  window.JM && window.JM.utils ? ok("JM.utils carregado") : fail("JM.utils carregado");
+  window.JM && window.JM.firebase ? ok("Firebase carregado") : fail("Firebase carregado");
+  window.JM && window.JM.tracker ? ok("Tracker carregado") : fail("Tracker carregado");
+  fn("JM.freeRouter.rankVehicles") ? ok("Roteirizador gratuito carregado") : fail("Roteirizador gratuito carregado");
+  fn("JM.mapa.renderFleetMap") ? ok("Mapa Leaflet/OSM carregado") : fail("Mapa Leaflet/OSM carregado");
+
+  const parsed = window.JM.freeRouter && window.JM.freeRouter.parseLocationInput("-20.851076,-49.398946");
+  parsed && parsed.coords ? ok("Parser de coordenadas funcionando") : fail("Parser de coordenadas funcionando");
+
+  const cfg = window.JM_CONFIG || {};
+  cfg.tracker && cfg.tracker.endpoint ? ok("Endpoint tracker configurado") : warn("Endpoint tracker", "faltando endpoint");
+  cfg.tracker && cfg.tracker.token ? ok("Token tracker presente") : warn("Token tracker", "faltando token");
+
+  console.log("Para testar rota: cole -20.851076,-49.398946 na origem, clique em Ler origem e depois Traçar rota inteligente.");
 }());

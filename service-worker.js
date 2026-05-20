@@ -1,4 +1,4 @@
-const CACHE_NAME = "jm-guinchos-v11-google-rotas";
+const CACHE_NAME = "jm-guinchos-v12-free-tracker";
 const ASSETS = [
   "./",
   "./index.html",
