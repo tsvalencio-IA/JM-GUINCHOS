@@ -96,29 +96,95 @@
     return flattenTrackerPayload(positionsPayload).map((p) => normalizePosition(p, deviceMap)).filter(Boolean);
   }
 
+  function cleanKey(value) {
+    return String(value == null ? "" : value).toLowerCase().trim();
+  }
+
+  function idSafe(value) {
+    return String(value || "").toUpperCase().replace(/[^A-Z0-9_-]+/g, "").slice(0, 40);
+  }
+
+  function vehicleKeys(id, vehicle) {
+    const values = [
+      id,
+      vehicle && vehicle.id,
+      vehicle && vehicle.placa,
+      vehicle && vehicle.trackerId,
+      vehicle && vehicle.trackerDeviceId,
+      vehicle && vehicle.trackerUniqueId,
+      vehicle && vehicle.uniqueId,
+      vehicle && vehicle.deviceId,
+      vehicle && vehicle.deviceName,
+      vehicle && vehicle.apelido
+    ];
+    if (vehicle && Array.isArray(vehicle.trackerIds)) values.push(...vehicle.trackerIds);
+    return values.map(cleanKey).filter(Boolean);
+  }
+
+  function positionKeys(pos) {
+    return [
+      pos && pos.plate,
+      pos && pos.trackerId,
+      pos && pos.deviceId,
+      pos && pos.uniqueId,
+      pos && pos.deviceName
+    ].map(cleanKey).filter(Boolean);
+  }
+
+  function mergeVehicleSources(configVehicles, firestoreVehicles) {
+    const out = Object.assign({}, configVehicles || {});
+    Object.entries(firestoreVehicles || {}).forEach(([id, vehicle]) => {
+      out[id] = Object.assign({}, out[id] || {}, vehicle || {});
+    });
+    return out;
+  }
+
+  function findVehicleMatch(pos, vehicles) {
+    const pKeys = positionKeys(pos);
+    let match = null;
+    Object.entries(vehicles || {}).forEach(([id, vehicle]) => {
+      if (match) return;
+      const key = vehicleKeys(id, vehicle).find((candidate) => pKeys.includes(candidate));
+      if (key) match = { id, vehicle, key };
+    });
+    return match;
+  }
+
+  function fallbackVehicleId(pos) {
+    if (pos && pos.deviceId) return "TRACKER_" + idSafe(pos.deviceId);
+    if (pos && pos.uniqueId) return "TRACKER_" + idSafe(String(pos.uniqueId).slice(-10));
+    if (pos && pos.plate) return idSafe(pos.plate);
+    if (pos && pos.trackerId) return "TRACKER_" + idSafe(pos.trackerId);
+    return "";
+  }
+
   async function syncTrackerToFirestore(config, db, vehicles) {
     const positions = await fetchTrackerPositions(config);
     if (!positions.length) return [];
+    const knownVehicles = mergeVehicleSources(config && config.vehicles, vehicles);
     const batch = db.batch();
     const now = new Date().toISOString();
     positions.forEach((pos) => {
-      let vehicleId = pos.plate;
-      Object.entries(vehicles || {}).forEach(([id, vehicle]) => {
-        const idMatch = String(vehicle.trackerId || "").toLowerCase() === String(pos.trackerId || "").toLowerCase();
-        const uniqueMatch = String(vehicle.trackerId || "").toLowerCase() === String(pos.uniqueId || "").toLowerCase();
-        const deviceMatch = String(vehicle.trackerId || "").toLowerCase() === String(pos.deviceId || "").toLowerCase();
-        const plateMatch = plateKey(vehicle.placa || id) === pos.plate;
-        if (idMatch || uniqueMatch || deviceMatch || plateMatch) vehicleId = id;
-      });
+      const match = findVehicleMatch(pos, knownVehicles);
+      const vehicleId = match && match.id || fallbackVehicleId(pos);
       if (!vehicleId) return;
+      const vehicle = match && match.vehicle || knownVehicles[vehicleId] || {};
+      pos.vehicleId = vehicleId;
+      pos.trackerMatched = Boolean(match);
+      pos.trackerMatchKey = match && match.key || "";
       const ref = db.collection("vehicles").doc(vehicleId);
       batch.set(ref, {
-        placa: vehicleId,
+        placa: vehicle.placa || (match ? vehicleId : pos.deviceName || pos.plate || vehicleId),
+        apelido: vehicle.apelido || pos.deviceName || "",
+        tipo: vehicle.tipo || "",
         location: { lat: pos.lat, lng: pos.lng },
         trackerId: pos.trackerId,
         trackerDeviceId: pos.deviceId || "",
         trackerUniqueId: pos.uniqueId || "",
         trackerDeviceName: pos.deviceName || "",
+        trackerMatched: Boolean(match),
+        trackerUnmapped: !match,
+        trackerMatchKey: match && match.key || "",
         trackerSource: pos.source,
         trackerStatus: pos.rawStatus,
         trackerAddress: pos.address || "",

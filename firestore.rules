@@ -9,7 +9,7 @@ service cloud.firestore {
     }
     function bootstrapAdminEmail() {
       return signedIn() && email() in [
-        'jmguinchos@ts.com',
+        'jm@jm.com',
         'tsvalencio@gmail.com'
       ];
     }
@@ -19,12 +19,12 @@ service cloud.firestore {
     function isManager() {
       return signedIn()
         && profile().active != false
-        && profile().role in ['admin', 'finance', 'superadmin', 'gestor', 'gerente', 'manager'];
+        && profile().role in ['admin', 'finance', 'superadmin', 'gestor', 'gerente', 'manager', 'owner'];
     }
     function isOffice() {
       return signedIn()
         && profile().active != false
-        && profile().role in ['admin', 'finance', 'superadmin', 'gestor', 'gerente', 'manager', 'auxiliar'];
+        && profile().role in ['admin', 'finance', 'superadmin', 'gestor', 'gerente', 'manager', 'owner', 'auxiliar', 'atendente'];
     }
     function isDriver() {
       return signedIn()
@@ -35,7 +35,7 @@ service cloud.firestore {
       return signedIn()
         && exists(/databases/$(database)/documents/managerAccess/$(email()))
         && get(/databases/$(database)/documents/managerAccess/$(email())).data.active != false
-        && get(/databases/$(database)/documents/managerAccess/$(email())).data.role in ['admin', 'finance', 'superadmin', 'gestor', 'gerente', 'manager', 'auxiliar'];
+        && get(/databases/$(database)/documents/managerAccess/$(email())).data.role in ['admin', 'finance', 'gestor', 'gerente', 'manager', 'owner', 'auxiliar', 'atendente'];
     }
     function ownOfficeRepair(uid) {
       return signedIn()
@@ -44,7 +44,7 @@ service cloud.firestore {
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.email == email()
         && request.resource.data.active == true
-        && request.resource.data.role in ['admin', 'finance', 'gestor', 'gerente', 'auxiliar'];
+        && request.resource.data.role in ['admin', 'finance', 'gestor', 'gerente', 'owner', 'auxiliar', 'atendente'];
     }
 
     match /users/{uid} {

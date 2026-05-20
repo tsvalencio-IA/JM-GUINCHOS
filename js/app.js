@@ -5,7 +5,7 @@
   const { auth, secondaryAuth, db, ts, arrayUnion, emailIsAdmin } = window.JM.firebase;
   const cfg = window.JM_CONFIG || {};
   const SYSTEM_SIGNATURE = "Powered by thIAguinho Soluções Digitais";
-  const LOGIN_FLOW_VERSION = "jm-free-tracker-v12";
+  const LOGIN_FLOW_VERSION = "jm-professional-v13";
   let trackerTimer = null;
   let trackerBusy = false;
 
@@ -23,8 +23,8 @@
   };
 
   const unsubscribers = [];
-  const OFFICE_ROLES = ["admin", "finance", "superadmin", "gestor", "owner", "manager", "gerente", "auxiliar"];
-  const MANAGER_ROLES = ["admin", "finance", "superadmin", "gestor", "owner", "manager", "gerente"];
+  const OFFICE_ROLES = ["admin", "finance", "gestor", "owner", "manager", "gerente", "auxiliar", "atendente"];
+  const MANAGER_ROLES = ["admin", "finance", "gestor", "owner", "manager", "gerente"];
   const DRIVER_ROLES = ["driver", "motorista"];
 
   function normalizedRole(role) {
@@ -271,10 +271,7 @@
     const authCfg = cfg.auth || {};
     // Mantém a trava por lista de e-mails quando ela existir.
     // Se a lista estiver vazia/removida, o sistema permite o primeiro gestor criar o perfil.
-    const list = [
-      ...(authCfg.adminEmails || []),
-      ...(authCfg.superadminEmails || [])
-    ].map((e) => String(e).toLowerCase().trim()).filter(Boolean);
+    const list = (authCfg.adminEmails || []).map((e) => String(e).toLowerCase().trim()).filter(Boolean);
     if (!list.length) return { allowed: true, role: "admin", source: "config-empty" };
     return emailIsAdmin(user.email) ? { allowed: true, role: "admin", source: "config" } : { allowed: false };
   }
@@ -388,9 +385,12 @@
     try {
       setTrackerStatus("Sincronizando Tracker RAFA...", "info");
       const positions = await window.JM.tracker.syncTrackerToFirestore(tracker, db, state.vehicles);
+      const matched = positions.filter((p) => p.trackerMatched).length;
+      const unmapped = positions.length - matched;
       const now = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-      setTrackerStatus(`Tracker RAFA sincronizado: ${positions.length} posição(ões) às ${now}.`, "ok");
-      if (manual) toast(`${positions.length} posição(ões) sincronizada(s) do Tracker.`, "ok");
+      const detail = unmapped > 0 ? ` (${unmapped} sem vinculo com placa; ajuste o deviceId no superadmin)` : "";
+      setTrackerStatus(`Tracker RAFA sincronizado: ${positions.length} posição(ões), ${matched} vinculada(s) às ${now}${detail}.`, unmapped > 0 ? "warn" : "ok");
+      if (manual) toast(`${positions.length} posição(ões) sincronizada(s), ${matched} vinculada(s).${detail}`, unmapped > 0 ? "warn" : "ok");
       return positions;
     } catch (err) {
       console.error(err);
@@ -695,6 +695,7 @@
       gestor: "Gestor",
       gerente: "Gerente",
       auxiliar: "Auxiliar",
+      atendente: "Atendente",
       finance: "Financeiro",
       driver: "Motorista",
       motorista: "Motorista"
@@ -729,7 +730,7 @@
         await secondaryAuth.signOut().catch(() => {});
       } catch (err) {
         if (err && err.code === "auth/email-already-in-use") {
-          // Para gestor/gerente/auxiliar, o jm.html repara users/{uid} no primeiro login usando managerAccess/{email}.
+          // Para gestor/gerente/atendente, o jm.html repara users/{uid} no primeiro login usando managerAccess/{email}.
           // Para motorista, o painel motorista tambem procura por e-mail e repara o UID quando possivel.
           uid = uidSafe(email);
         } else {

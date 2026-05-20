@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07111f">
   <title>JM Guinchos - Superadmin</title>
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/style.css?v=jm-free-tracker-v12">
+  <link rel="stylesheet" href="css/style.css?v=jm-professional-v13">
 </head>
 <body>
   <section id="superLoginView" class="login">
@@ -61,7 +61,7 @@
             <div class="wide"><label>Nome</label><input id="adminName" required></div>
             <div><label>E-mail</label><input id="adminEmail" type="email" required></div>
             <div><label>Senha inicial</label><input id="adminPass" type="password" autocomplete="new-password" required></div>
-            <div><label>Perfil</label><select id="adminRole"><option value="admin">Gestor/Admin</option><option value="gerente">Gerente</option><option value="auxiliar">Auxiliar</option><option value="driver">Motorista</option><option value="finance">Financeiro</option></select></div>
+            <div><label>Perfil</label><select id="adminRole"><option value="admin">Gestor/Admin</option><option value="gerente">Gerente</option><option value="atendente">Atendente</option><option value="driver">Motorista</option><option value="finance">Financeiro</option></select></div>
             <button class="btn primary wide" type="submit">Criar usuário no Auth</button>
           </form>
         </section>
@@ -81,8 +81,8 @@
         <section class="panel col-6">
           <h2>Rastreadores da frota</h2>
           <form id="trackerVehiclesForm" class="form-grid">
-            <div><label>FHA4B30 tracker ID</label><input id="trackerFha"></div>
-            <div><label>DAJ6J95 tracker ID</label><input id="trackerDaj"></div>
+            <div><label>FHA4B30 deviceId/uniqueId</label><input id="trackerFha" placeholder="ex.: 81 ou 869412076870093"></div>
+            <div><label>DAJ6J95 deviceId/uniqueId</label><input id="trackerDaj" placeholder="ex.: 81 ou 869412076870093"></div>
             <button class="btn primary wide" type="submit">Salvar IDs</button>
           </form>
           <h2 style="margin-top:18px">Cloudinary</h2>
@@ -109,13 +109,13 @@
   <footer class="signature-footer">Powered by thIAguinho Soluções Digitais</footer>
   <div id="toast" class="toast"></div>
 
-  <script src="js/config.firebase.js?v=jm-free-tracker-v12"></script>
+  <script src="js/config.firebase.js?v=jm-professional-v13"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="js/utils.js?v=jm-free-tracker-v12"></script>
-  <script src="js/firebase.js?v=jm-free-tracker-v12"></script>
-  <script src="js/tracker.js?v=jm-free-tracker-v12"></script>
-  <script src="js/superadmin.js?v=jm-free-tracker-v12"></script>
+  <script src="js/utils.js?v=jm-professional-v13"></script>
+  <script src="js/firebase.js?v=jm-professional-v13"></script>
+  <script src="js/tracker.js?v=jm-professional-v13"></script>
+  <script src="js/superadmin.js?v=jm-professional-v13"></script>
 </body>
 </html>

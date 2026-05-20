@@ -1,8 +1,8 @@
 /*
  * JM Guinchos - configuracao central
  * Frontend estatico: qualquer dado neste arquivo fica visivel no GitHub Pages.
- * Para operacao profissional, restrinja o token do rastreador no painel do fornecedor
- * e troque o token sempre que suspeitar de exposicao.
+ * Para operacao profissional, nao publique token de rastreador neste arquivo.
+ * Cadastre o token no superadmin.html e troque-o sempre que houver exposicao.
  */
 window.JM_CONFIG = {
   firebaseConfig: {
@@ -21,11 +21,9 @@ window.JM_CONFIG = {
   },
   auth: {
     adminEmails: [
-      "jmguinchos@ts.com",
-      "tsvalencio@gmail.com"
+      "jm@jm.com"
     ],
     superadminEmails: [
-      "jmguinchos@ts.com",
       "tsvalencio@gmail.com"
     ],
     autoRepairGestorLogin: true
@@ -42,7 +40,7 @@ window.JM_CONFIG = {
     platformUrl: "https://gps2.rafacarrastreadores.com.br",
     endpoint: "https://gps2.rafacarrastreadores.com.br/api",
     socketUrl: "wss://gps2.rafacarrastreadores.com.br/api/socket",
-    token: "RjBEAiBIfZbqwxwwx4sflEv1MKhRihZ9u6D3zDUmThyl4Eli1QIgNwK-0XsQUZqgb9YZzZLVrU1bVYVQbri_07sv290x9LV7InUiOjI1LCJlIjoiMjAyNi0xMS0xMFQwMDozODoxMy4zNDkrMDA6MDAifQ",
+    token: "",
     tokenHeader: "Authorization",
     tokenPrefix: "Bearer ",
     pollingMs: 30000,

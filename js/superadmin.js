@@ -169,7 +169,10 @@
     }
     try {
       const positions = await window.JM.tracker.syncTrackerToFirestore(tracker, db, vehicles);
-      toast(`${positions.length} posição(ões) sincronizada(s) do Tracker.`, "ok");
+      const matched = positions.filter((p) => p.trackerMatched).length;
+      const unmapped = positions.length - matched;
+      const detail = unmapped > 0 ? ` ${unmapped} sem vinculo com placa; preencha o deviceId/uniqueId correto em Rastreadores da frota.` : "";
+      toast(`${positions.length} posição(ões) sincronizada(s), ${matched} vinculada(s).${detail}`, unmapped > 0 ? "warn" : "ok");
     } catch (err) {
       console.error(err);
       toast("Tracker indisponível: " + (err && err.message || err), "danger");
@@ -253,11 +256,21 @@
   }
 
   function isOfficeRole(role) {
-    return ["admin", "gestor", "gerente", "auxiliar", "finance", "superadmin", "manager"].includes(normalizedRole(role));
+    return ["admin", "gestor", "gerente", "auxiliar", "atendente", "finance", "manager"].includes(normalizedRole(role));
   }
 
   function roleLabel(role) {
-    return ({ admin: "Gestor/Admin", gestor: "Gestor", gerente: "Gerente", auxiliar: "Auxiliar", driver: "Motorista", motorista: "Motorista", finance: "Financeiro" })[normalizedRole(role)] || role || "Usuário";
+    const labels = {
+      admin: "Gestor/Admin",
+      gestor: "Gestor",
+      gerente: "Gerente",
+      auxiliar: "Auxiliar",
+      atendente: "Atendente",
+      driver: "Motorista",
+      motorista: "Motorista",
+      finance: "Financeiro"
+    };
+    return labels[normalizedRole(role)] || role || "Usuário";
   }
 
   $("adminUserForm").onsubmit = async (e) => {

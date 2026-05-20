@@ -1,4 +1,4 @@
-const CACHE_NAME = "jm-guinchos-v12-free-tracker";
+const CACHE_NAME = "jm-guinchos-v13-professional";
 const ASSETS = [
   "./",
   "./index.html",
