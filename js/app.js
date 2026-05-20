@@ -1,11 +1,11 @@
-﻿(function () {
+(function () {
   "use strict";
 
   const { $, $all, esc, money, parseMoney, dateTime, todayInput, plateKey, uidSafe, coords, pointFrom, callRoutePoints, routeKm, mapsRouteUrl, toast, statusClass } = window.JM.utils;
   const { auth, secondaryAuth, db, ts, arrayUnion, emailIsAdmin } = window.JM.firebase;
   const cfg = window.JM_CONFIG || {};
-  const SYSTEM_SIGNATURE = "Powered by thIAguinho SoluÃ§Ãµes Digitais";
-  const LOGIN_FLOW_VERSION = "jm-driver-login-v15";
+  const SYSTEM_SIGNATURE = "Powered by thIAguinho Soluções Digitais";
+  const LOGIN_FLOW_VERSION = "jm-admin-actions-v16";
   let trackerTimer = null;
   let trackerBusy = false;
 
@@ -19,7 +19,9 @@
     transactions: {},
     settings: {},
     addresses: { origin: null, destination: null },
-    smartRoute: null
+    smartRoute: null,
+    editingCallId: null,
+    editingUserId: null
   };
 
   const unsubscribers = [];
@@ -94,9 +96,9 @@
     if (point) {
       $(latId).value = String(point.lat);
       $(lngId).value = String(point.lng);
-      addressStatus(statusId, "EndereÃ§o validado: " + normalized.label + " (" + point.lat.toFixed(6) + ", " + point.lng.toFixed(6) + ")", "ok");
+      addressStatus(statusId, "Endereço validado: " + normalized.label + " (" + point.lat.toFixed(6) + ", " + point.lng.toFixed(6) + ")", "ok");
     } else {
-      addressStatus(statusId, "EndereÃ§o ainda sem coordenadas. Cole link do mapa com coordenadas ou informe latitude/longitude.", "danger");
+      addressStatus(statusId, "Endereço ainda sem coordenadas. Cole link do mapa com coordenadas ou informe latitude/longitude.", "danger");
     }
     state.smartRoute = null;
     renderSmartRouteBox();
@@ -122,7 +124,7 @@
     const gm = window.JM.googleMaps;
     if (!gm) return;
     if (!gm.isConfigured(activeMapSettings())) {
-      addressStatus("originGeoStatus", "Modo gratuito ativo: cole link compartilhado do mapa ou coordenadas. NÃ£o usa API paga.", "warn");
+      addressStatus("originGeoStatus", "Modo gratuito ativo: cole link compartilhado do mapa ou coordenadas. Não usa API paga.", "warn");
       return;
     }
     gm.initAutocomplete("callOriginLabel", (addr) => setAddress("origin", addr), activeMapSettings()).catch((err) => addressStatus("originGeoStatus", err.message, "danger"));
@@ -137,7 +139,7 @@
     const labelId = isOrigin ? "callOriginLabel" : "callDestLabel";
     const statusId = isOrigin ? "originGeoStatus" : "destGeoStatus";
     try {
-      if (!gm || !gm.isConfigured(activeMapSettings())) throw new Error("Cole um link de mapa com coordenadas visÃ­veis ou informe latitude/longitude.");
+      if (!gm || !gm.isConfigured(activeMapSettings())) throw new Error("Cole um link de mapa com coordenadas visíveis ou informe latitude/longitude.");
       addressStatus(statusId, "Lendo link/coordenadas...", "muted");
       const addr = await gm.geocode($(labelId).value.trim(), activeMapSettings());
       setAddress(kind, addr);
@@ -149,18 +151,18 @@
   }
 
   function useCurrentLocationAsOrigin() {
-    if (!navigator.geolocation) return toast("Este navegador nÃ£o liberou geolocalizaÃ§Ã£o.", "danger");
-    addressStatus("originGeoStatus", "Capturando localizaÃ§Ã£o do aparelho...", "muted");
+    if (!navigator.geolocation) return toast("Este navegador não liberou geolocalização.", "danger");
+    addressStatus("originGeoStatus", "Capturando localização do aparelho...", "muted");
     navigator.geolocation.getCurrentPosition((pos) => {
       setAddress("origin", {
-        label: "LocalizaÃ§Ã£o atual do aparelho",
+        label: "Localização atual do aparelho",
         coords: { lat: pos.coords.latitude, lng: pos.coords.longitude },
         source: "browser_geolocation",
         resolvedAt: new Date().toISOString()
       });
-      toast("LocalizaÃ§Ã£o atual aplicada como origem.", "ok");
+      toast("Localização atual aplicada como origem.", "ok");
     }, (err) => {
-      addressStatus("originGeoStatus", "NÃ£o foi possÃ­vel obter localizaÃ§Ã£o: " + err.message, "danger");
+      addressStatus("originGeoStatus", "Não foi possível obter localização: " + err.message, "danger");
     }, { enableHighAccuracy: true, timeout: 12000 });
   }
 
@@ -173,18 +175,18 @@
     if (!box) return;
     const route = state.smartRoute;
     if (!route || !route.rankings || !route.rankings.length) {
-      box.innerHTML = "Informe a origem e clique em <b>TraÃ§ar rota inteligente</b>. O algoritmo usa posiÃ§Ã£o do tracker, status do veÃ­culo, distÃ¢ncia e tempo estimado.";
+      box.innerHTML = "Informe a origem e clique em <b>Traçar rota inteligente</b>. O algoritmo usa posição do tracker, status do veículo, distância e tempo estimado.";
       return;
     }
     box.innerHTML = route.rankings.slice(0, 5).map((r, i) => {
       const v = r.vehicle || {};
-      const badge = i === 0 ? '<span class="badge ok">RECOMENDADO</span>' : '<span class="badge info">OpÃ§Ã£o ' + (i + 1) + '</span>';
+      const badge = i === 0 ? '<span class="badge ok">RECOMENDADO</span>' : '<span class="badge info">Opção ' + (i + 1) + '</span>';
       const src = r.toOrigin && r.toOrigin.source === "free_leaflet_haversine" ? "mapa gratuito" : "estimativa";
       return `<div class="smart-route-card">
-        <div>${badge} <b>${esc(v.placa || v.id || "VeÃ­culo")}</b> <span class="muted">${esc(v.apelido || v.tipo || "")}</span></div>
-        <div>AtÃ© a origem: <b>${esc(r.toOrigin.distanceText || r.kmToOrigin.toFixed(1) + " km")}</b> Â· <b>${esc(r.toOrigin.durationTrafficText || r.toOrigin.durationText || r.minutesToOrigin + " min")}</b> Â· fonte: ${esc(src)}</div>
-        ${r.serviceRoute ? `<div>Origem â†’ destino: <b>${esc(r.serviceRoute.distanceText || "")}</b> Â· <b>${esc(r.serviceRoute.durationTrafficText || r.serviceRoute.durationText || "")}</b></div>` : ""}
-        <div class="actions"><button class="btn primary" type="button" onclick="JM.app.applySmartVehicle('${esc(v.id)}')">Usar este veÃ­culo</button>${r.routeUrl ? `<a class="btn" target="_blank" href="${esc(r.routeUrl)}">Abrir rota</a>` : ""}</div>
+        <div>${badge} <b>${esc(v.placa || v.id || "Veículo")}</b> <span class="muted">${esc(v.apelido || v.tipo || "")}</span></div>
+        <div>Até a origem: <b>${esc(r.toOrigin.distanceText || r.kmToOrigin.toFixed(1) + " km")}</b> · <b>${esc(r.toOrigin.durationTrafficText || r.toOrigin.durationText || r.minutesToOrigin + " min")}</b> · fonte: ${esc(src)}</div>
+        ${r.serviceRoute ? `<div>Origem → destino: <b>${esc(r.serviceRoute.distanceText || "")}</b> · <b>${esc(r.serviceRoute.durationTrafficText || r.serviceRoute.durationText || "")}</b></div>` : ""}
+        <div class="actions"><button class="btn primary" type="button" onclick="JM.app.applySmartVehicle('${esc(v.id)}')">Usar este veículo</button>${r.routeUrl ? `<a class="btn" target="_blank" href="${esc(r.routeUrl)}">Abrir rota</a>` : ""}</div>
       </div>`;
     }).join("");
   }
@@ -205,8 +207,8 @@
       destination = addressFromInputs("destination");
     }
     const located = Object.values(state.vehicles || {}).filter((v) => pointFrom(v.location));
-    if (!located.length) return toast("Nenhum veÃ­culo tem posiÃ§Ã£o de tracker. Sincronize o tracker no superadmin primeiro.", "danger");
-    $("smartRouteBox").innerHTML = "Calculando melhor veÃ­culo e tempo de rota...";
+    if (!located.length) return toast("Nenhum veículo tem posição de tracker. Sincronize o tracker no superadmin primeiro.", "danger");
+    $("smartRouteBox").innerHTML = "Calculando melhor veículo e tempo de rota...";
     try {
       const rankings = await gm.rankVehicles(state.vehicles, finalOrigin.coords, destination && destination.coords, activeMapSettings());
       state.smartRoute = { origin: finalOrigin, destination, rankings, calculatedAt: new Date().toISOString() };
@@ -222,7 +224,7 @@
 
   function applySmartVehicle(vehicleId) {
     if ($("callVehicle")) $("callVehicle").value = vehicleId || "";
-    toast("VeÃ­culo aplicado ao chamado.", "ok");
+    toast("Veículo aplicado ao chamado.", "ok");
   }
 
   function openGoogleRouteFromForm() {
@@ -234,7 +236,7 @@
     if (origin && origin.coords) points.push(origin.coords);
     if (destination && destination.coords) points.push(destination.coords);
     const url = window.JM.googleMaps && window.JM.googleMaps.routeUrl(points) || mapsRouteUrl(points);
-    if (!url) return toast("Informe origem/destino e selecione veÃ­culo com posiÃ§Ã£o para abrir a rota.", "danger");
+    if (!url) return toast("Informe origem/destino e selecione veículo com posição para abrir a rota.", "danger");
     window.open(url, "_blank");
   }
 
@@ -263,13 +265,44 @@
     $("logoutBtn").onclick = () => auth.signOut();
   }
 
+  function setSubmitText(formId, text) {
+    const button = document.querySelector(`#${formId} button[type="submit"]`);
+    if (button) button.textContent = text;
+  }
+
+  function setValue(id, value) {
+    const el = $(id);
+    if (el) el.value = value == null ? "" : String(value);
+  }
+
+  function resetCallForm() {
+    if ($("callForm")) $("callForm").reset();
+    state.editingCallId = null;
+    state.addresses = { origin: null, destination: null };
+    state.smartRoute = null;
+    setSubmitText("callForm", "Registrar chamado");
+    if ($("callCancelEdit")) $("callCancelEdit").classList.add("hidden");
+    renderSmartRouteBox();
+    addressStatus("originGeoStatus", "Aguardando link do mapa ou coordenadas.", "muted");
+    addressStatus("destGeoStatus", "Destino opcional; pode ser link compartilhado ou coordenadas.", "muted");
+  }
+
+  function resetTeamForm() {
+    if ($("teamForm")) $("teamForm").reset();
+    state.editingUserId = null;
+    if ($("teamEmail")) $("teamEmail").readOnly = false;
+    if ($("teamPass")) $("teamPass").placeholder = "mínimo 6 caracteres";
+    setSubmitText("teamForm", "Criar/atualizar equipe");
+    if ($("teamCancelEdit")) $("teamCancelEdit").classList.add("hidden");
+  }
+
   function reportSignature() {
     return `<div class="report-signature">${SYSTEM_SIGNATURE}</div>`;
   }
 
   function gestorAccessAllowedByConfig(user) {
     const authCfg = cfg.auth || {};
-    // MantÃ©m a trava por lista de e-mails quando ela existir.
+    // Mantém a trava por lista de e-mails quando ela existir.
     // Se a lista estiver vazia/removida, o sistema permite o primeiro gestor criar o perfil.
     const list = (authCfg.adminEmails || []).map((e) => String(e).toLowerCase().trim()).filter(Boolean);
     if (!list.length) return { allowed: true, role: "admin", source: "config-empty" };
@@ -318,7 +351,7 @@
     const current = snap.exists ? { id: user.uid, ...snap.data() } : null;
 
     if (current && current.active === false) {
-      throw new Error("Este usuÃ¡rio estÃ¡ inativo no cadastro da JM Guinchos.");
+      throw new Error("Este usuário está inativo no cadastro da JM Guinchos.");
     }
 
     const baseProfile = {
@@ -336,12 +369,12 @@
     const configAccess = gestorAccessAllowedByConfig(user);
     const registryAccess = configAccess.allowed ? configAccess : await gestorAccessAllowedByRegistry(user);
     if (!registryAccess.allowed) {
-      throw new Error("Este e-mail nÃ£o estÃ¡ liberado como gestor. Crie/libere o gestor no superadmin antes de acessar o jm.html.");
+      throw new Error("Este e-mail não está liberado como gestor. Crie/libere o gestor no superadmin antes de acessar o jm.html.");
     }
 
-    // CorreÃ§Ã£o definitiva do bug: jm.html Ã© painel gestor.
-    // Se o usuÃ¡rio foi criado como driver/motorista por fluxo antigo, repara para admin/financeiro
-    // usando a autorizaÃ§Ã£o por e-mail gravada pelo superadmin em managerAccess/{email}.
+    // Correção definitiva do bug: jm.html é painel gestor.
+    // Se o usuário foi criado como driver/motorista por fluxo antigo, repara para admin/financeiro
+    // usando a autorização por e-mail gravada pelo superadmin em managerAccess/{email}.
     const repairedProfile = {
       ...baseProfile,
       role: registryAccess.role || "admin",
@@ -354,7 +387,7 @@
       return await saveGestorProfile(ref, repairedProfile, current || null);
     } catch (err) {
       if (err && err.code === "permission-denied") {
-        throw new Error("O login foi aceito, mas o Firestore bloqueou a correÃ§Ã£o do perfil. Publique as novas firestore.rules deste ZIP ou altere o documento users/" + user.uid + " para role: admin.");
+        throw new Error("O login foi aceito, mas o Firestore bloqueou a correção do perfil. Publique as novas firestore.rules deste ZIP ou altere o documento users/" + user.uid + " para role: admin.");
       }
       throw err;
     }
@@ -389,8 +422,8 @@
       const unmapped = positions.length - matched;
       const now = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
       const detail = unmapped > 0 ? ` (${unmapped} sem vinculo com placa; ajuste o deviceId no superadmin)` : "";
-      setTrackerStatus(`Tracker RAFA sincronizado: ${positions.length} posiÃ§Ã£o(Ãµes), ${matched} vinculada(s) Ã s ${now}${detail}.`, unmapped > 0 ? "warn" : "ok");
-      if (manual) toast(`${positions.length} posiÃ§Ã£o(Ãµes) sincronizada(s), ${matched} vinculada(s).${detail}`, unmapped > 0 ? "warn" : "ok");
+      setTrackerStatus(`Tracker RAFA sincronizado: ${positions.length} posição(ões), ${matched} vinculada(s) às ${now}${detail}.`, unmapped > 0 ? "warn" : "ok");
+      if (manual) toast(`${positions.length} posição(ões) sincronizada(s), ${matched} vinculada(s).${detail}`, unmapped > 0 ? "warn" : "ok");
       return positions;
     } catch (err) {
       console.error(err);
@@ -413,7 +446,7 @@
       return;
     }
     const polling = Math.max(15000, Number(tracker.pollingMs || 30000));
-    setTrackerStatus("Tracker configurado. AtualizaÃ§Ã£o automÃ¡tica a cada " + Math.round(polling / 1000) + "s.", "ok");
+    setTrackerStatus("Tracker configurado. Atualização automática a cada " + Math.round(polling / 1000) + "s.", "ok");
     syncTrackerNow(false);
     trackerTimer = setInterval(() => syncTrackerNow(false), polling);
   }
@@ -481,7 +514,7 @@
     } catch (err) {
       $("appView").classList.add("hidden");
       $("loginView").classList.remove("hidden");
-      $("loginError").textContent = err && err.message ? err.message : "Acesso de gestor nÃ£o autorizado.";
+      $("loginError").textContent = err && err.message ? err.message : "Acesso de gestor não autorizado.";
       await auth.signOut().catch(() => {});
     }
   });
@@ -499,7 +532,7 @@
   function friendlyAuthError(err) {
     const code = err && err.code || "";
     if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
-      return "UsuÃ¡rio ou senha invÃ¡lidos. O acesso de gestor deve existir no Firebase Authentication.";
+      return "Usuário ou senha inválidos. O acesso de gestor deve existir no Firebase Authentication.";
     }
     if (code === "auth/operation-not-allowed") {
       return "Ative o provedor E-mail/Senha no Firebase Authentication.";
@@ -507,7 +540,7 @@
     if (code === "auth/too-many-requests") {
       return "Muitas tentativas. Aguarde alguns minutos ou redefina a senha no Firebase.";
     }
-    return "Acesso negado: " + (err && err.message || "falha de autenticaÃ§Ã£o");
+    return "Acesso negado: " + (err && err.message || "falha de autenticação");
   }
 
   function renderAll() {
@@ -560,19 +593,20 @@
   function renderCalls() {
     const rows = Object.values(state.calls).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
     if (!rows.length) return $("callsTable").innerHTML = `<p class="muted">Nenhum chamado registrado.</p>`;
-    $("callsTable").innerHTML = `<table><thead><tr><th>Protocolo</th><th>Cliente</th><th>Origem/Destino</th><th>VeÃ­culo</th><th>Status</th><th>AÃ§Ãµes</th></tr></thead><tbody>` + rows.map((c) => {
+    $("callsTable").innerHTML = `<table><thead><tr><th>Protocolo</th><th>Cliente</th><th>Origem/Destino</th><th>Veículo</th><th>Status</th><th>Ações</th></tr></thead><tbody>` + rows.map((c) => {
       const vehicle = state.vehicles[c.vehicleId] || {};
       const driver = state.users[c.driverId] || {};
       const url = c.routeUrl || mapsRouteUrl(c, vehicle);
       const km = routeKm(c, vehicle);
       const metric = c.routeMetrics && c.routeMetrics.bestToOrigin && c.routeMetrics.bestToOrigin.distanceText || (km ? km.toFixed(1).replace(".", ",") + " km" : "Sem rota");
+      const adminActions = isAdmin() ? `<button class="btn" onclick="JM.app.editCall('${esc(c.id)}')">Editar</button><button class="btn danger" onclick="JM.app.deleteCall('${esc(c.id)}')">Excluir</button>` : "";
       return `<tr>
         <td><b>${esc(c.protocolo || c.id)}</b><br><span class="muted small">${dateTime(c.createdAt)}</span></td>
         <td>${esc(c.cliente || "")}<br><span class="muted small">${esc(c.phone || "")}</span></td>
-        <td><span class="small">${esc(c.originLabel || c.origem && c.origem.label || "-")}</span><br><span class="muted small">â†’ ${esc(c.destLabel || c.destino && c.destino.label || "-")}</span><br><b>${esc(metric)}</b>${url ? `<br><a class="info small" target="_blank" href="${esc(url)}">Abrir rota no Maps</a>` : ""}</td>
+        <td><span class="small">${esc(c.originLabel || c.origem && c.origem.label || "-")}</span><br><span class="muted small">→ ${esc(c.destLabel || c.destino && c.destino.label || "-")}</span><br><b>${esc(metric)}</b>${url ? `<br><a class="info small" target="_blank" href="${esc(url)}">Abrir rota no Maps</a>` : ""}</td>
         <td>${esc(vehicle.placa || "-")}<br><span class="muted small">${esc(driver.nome || driver.email || "Sem motorista")}</span></td>
         <td><span class="badge ${statusClass(c.status)}">${esc(c.status || "Novo")}</span><br><b>${money(c.valor || 0)}</b></td>
-        <td class="row-actions"><button class="btn good" onclick="JM.app.setCallStatus('${esc(c.id)}','Despachado')">Despachar</button><button class="btn primary" onclick="JM.app.setCallStatus('${esc(c.id)}','Em Atendimento')">Atender</button><button class="btn" onclick="JM.app.setCallStatus('${esc(c.id)}','Finalizado')">Finalizar</button></td>
+        <td class="row-actions"><button class="btn good" onclick="JM.app.setCallStatus('${esc(c.id)}','Despachado')">Despachar</button><button class="btn primary" onclick="JM.app.setCallStatus('${esc(c.id)}','Em Atendimento')">Atender</button><button class="btn" onclick="JM.app.setCallStatus('${esc(c.id)}','Finalizado')">Finalizar</button>${adminActions}</td>
       </tr>`;
     }).join("") + `</tbody></table>`;
   }
@@ -591,9 +625,8 @@
     if (selectedVehicle && selectedVehicle.location) routePoints.push(selectedVehicle.location);
     routePoints.push(originAddress.coords);
     if (destinationAddress && destinationAddress.coords) routePoints.push(destinationAddress.coords);
-    const protocolo = "JM-" + new Date().toISOString().replace(/\D/g, "").slice(2, 14);
-    const data = {
-      protocolo,
+    const now = new Date().toISOString();
+    const baseData = {
       cliente: $("callClient").value.trim(),
       phone: $("callPhone").value.trim(),
       serviceType: $("callType").value,
@@ -615,19 +648,29 @@
         calculatedAt: state.smartRoute && state.smartRoute.calculatedAt || new Date().toISOString(),
         algorithm: "tracker_position + free_leaflet_haversine_or_fallback + status_penalty"
       } : null,
-      status: $("callDriver").value ? "Despachado" : "Novo",
-      notes: $("callNotes").value.trim(),
-      createdAt: new Date().toISOString(),
-      createdBy: state.user.uid,
-      timeline: [{ at: new Date().toISOString(), by: state.profile.nome || state.user.email, text: "Chamado criado com endereÃ§o validado e rota inteligente" }]
+      notes: $("callNotes").value.trim()
     };
-    await db.collection("calls").add(data);
-    e.target.reset();
-    state.addresses = { origin: null, destination: null };
-    state.smartRoute = null;
-    renderSmartRouteBox();
-    addressStatus("originGeoStatus", "Aguardando endereÃ§o lido com coordenadas.", "muted");
-    addressStatus("destGeoStatus", "Destino opcional, mas recomendado para rota completa.", "muted");
+    if (state.editingCallId) {
+      const current = state.calls[state.editingCallId] || {};
+      await db.collection("calls").doc(state.editingCallId).set(Object.assign({}, baseData, {
+        status: current.status || ($("callDriver").value ? "Despachado" : "Novo"),
+        updatedAt: now,
+        updatedBy: state.user.uid,
+        timeline: arrayUnion({ at: now, by: state.profile.nome || state.user.email, text: "Chamado editado pelo gestor" })
+      }), { merge: true });
+      resetCallForm();
+      toast("Chamado atualizado.", "ok");
+      return;
+    }
+    const protocolo = "JM-" + now.replace(/\D/g, "").slice(2, 14);
+    await db.collection("calls").add(Object.assign({}, baseData, {
+      protocolo,
+      status: $("callDriver").value ? "Despachado" : "Novo",
+      createdAt: now,
+      createdBy: state.user.uid,
+      timeline: [{ at: now, by: state.profile.nome || state.user.email, text: "Chamado criado com endereço validado e rota inteligente" }]
+    }));
+    resetCallForm();
     toast("Chamado registrado com dados de rota.", "ok");
   };
 
@@ -658,11 +701,66 @@
     toast("Status atualizado.", "ok");
   }
 
+  function editCall(id) {
+    if (!isAdmin()) return toast("Somente gestor/dono pode editar chamados.", "danger");
+    const call = state.calls[id];
+    if (!call) return toast("Chamado não encontrado.", "danger");
+    state.editingCallId = id;
+    showView("chamados");
+    setValue("callClient", call.cliente || "");
+    setValue("callPhone", call.phone || "");
+    setValue("callType", call.serviceType || "Guincho");
+    setValue("callPrice", call.valor || "");
+    setValue("callVehicle", call.vehicleId || "");
+    setValue("callDriver", call.driverId || "");
+    setValue("callNotes", call.notes || "");
+    const originPoint = pointFrom(call.origem || call.origin);
+    const destPoint = pointFrom(call.destino || call.destination);
+    state.addresses.origin = {
+      label: call.originLabel || call.origem && call.origem.label || "",
+      coords: originPoint,
+      source: call.origem && call.origem.source || "edit",
+      resolvedAt: call.origem && call.origem.resolvedAt || new Date().toISOString()
+    };
+    state.addresses.destination = {
+      label: call.destLabel || call.destino && call.destino.label || "",
+      coords: destPoint,
+      source: call.destino && call.destino.source || "edit",
+      resolvedAt: call.destino && call.destino.resolvedAt || new Date().toISOString()
+    };
+    setValue("callOriginLabel", state.addresses.origin.label);
+    setValue("callOriginLat", originPoint && originPoint.lat);
+    setValue("callOriginLng", originPoint && originPoint.lng);
+    setValue("callDestLabel", state.addresses.destination.label);
+    setValue("callDestLat", destPoint && destPoint.lat);
+    setValue("callDestLng", destPoint && destPoint.lng);
+    state.smartRoute = null;
+    renderSmartRouteBox();
+    setSubmitText("callForm", "Salvar alterações do chamado");
+    if ($("callCancelEdit")) $("callCancelEdit").classList.remove("hidden");
+    toast("Edite o chamado e salve as alterações.", "ok");
+  }
+
+  async function deleteCall(id) {
+    if (!isAdmin()) return toast("Somente gestor/dono pode excluir chamados.", "danger");
+    const call = state.calls[id];
+    if (!call) return toast("Chamado não encontrado.", "danger");
+    const label = call.protocolo || call.cliente || id;
+    if (!window.confirm(`Excluir o chamado ${label}? Esta ação remove o chamado e lançamentos financeiros vinculados a ele.`)) return;
+    const batch = db.batch();
+    batch.delete(db.collection("calls").doc(id));
+    const linkedTransactions = await db.collection("transactions").where("callId", "==", id).get();
+    linkedTransactions.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+    if (state.editingCallId === id) resetCallForm();
+    toast("Chamado excluído.", "ok");
+  }
+
   function renderVehicles() {
     const rows = Object.values(state.vehicles).sort((a, b) => String(a.placa || "").localeCompare(String(b.placa || "")));
-    $("fleetTable").innerHTML = rows.length ? `<table><thead><tr><th>Placa</th><th>Tipo</th><th>Status</th><th>Tracker</th></tr></thead><tbody>` + rows.map((v) => `<tr><td><b>${esc(v.placa || v.id)}</b><br><span class="muted small">${esc(v.apelido || "")}</span></td><td>${esc(v.tipo || "")}</td><td><span class="badge info">${esc(v.status || "")}</span></td><td>${v.location ? `${esc(v.location.lat)}, ${esc(v.location.lng)}` : "Sem posiÃ§Ã£o"}</td></tr>`).join("") + `</tbody></table>` : `<p class="muted">Nenhum veÃ­culo.</p>`;
+    $("fleetTable").innerHTML = rows.length ? `<table><thead><tr><th>Placa</th><th>Tipo</th><th>Status</th><th>Tracker</th></tr></thead><tbody>` + rows.map((v) => `<tr><td><b>${esc(v.placa || v.id)}</b><br><span class="muted small">${esc(v.apelido || "")}</span></td><td>${esc(v.tipo || "")}</td><td><span class="badge info">${esc(v.status || "")}</span></td><td>${v.location ? `${esc(v.location.lat)}, ${esc(v.location.lng)}` : "Sem posição"}</td></tr>`).join("") + `</tbody></table>` : `<p class="muted">Nenhum veículo.</p>`;
 
-    $("vehicleCards").innerHTML = rows.length ? rows.map((v) => `<div class="card col-3"><b>${esc(v.placa || v.id)}</b><p class="muted small">${esc(v.apelido || v.tipo || "")}</p><span class="badge info">${esc(v.status || "")}</span><p class="small">${v.location ? `Lat ${esc(v.location.lat)}<br>Lng ${esc(v.location.lng)}` : "Sem posiÃ§Ã£o do tracker"}</p></div>`).join("") : `<p class="muted">Sem frota cadastrada.</p>`;
+    $("vehicleCards").innerHTML = rows.length ? rows.map((v) => `<div class="card col-3"><b>${esc(v.placa || v.id)}</b><p class="muted small">${esc(v.apelido || v.tipo || "")}</p><span class="badge info">${esc(v.status || "")}</span><p class="small">${v.location ? `Lat ${esc(v.location.lat)}<br>Lng ${esc(v.location.lng)}` : "Sem posição do tracker"}</p></div>`).join("") : `<p class="muted">Sem frota cadastrada.</p>`;
   }
 
   $("vehicleForm").onsubmit = async (e) => {
@@ -679,14 +777,18 @@
       updatedBy: state.user.uid
     }, { merge: true });
     e.target.reset();
-    toast("VeÃ­culo salvo.", "ok");
+    toast("Veículo salvo.", "ok");
   };
 
   function renderTeam() {
     const rows = Object.values(state.users).sort((a, b) => String(a.nome || a.email || "").localeCompare(String(b.nome || b.email || "")));
-    $("teamTable").innerHTML = rows.length ? `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th></tr></thead><tbody>` +
-      rows.map((u) => `<tr><td><b>${esc(u.nome || "")}</b><br><span class="muted small">${esc(u.uid || u.id)}</span></td><td>${esc(u.email || "")}</td><td><span class="badge info">${esc(u.role || "")}</span></td><td>${u.active === false ? "Inativo" : "Ativo"}</td></tr>`).join("") +
-      `</tbody></table>` : `<p class="muted">Nenhum usuÃ¡rio.</p>`;
+    $("teamTable").innerHTML = rows.length ? `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th><th>Ações</th></tr></thead><tbody>` +
+      rows.map((u) => {
+        const canDelete = u.id !== state.user?.uid;
+        const deleteButton = canDelete ? `<button class="btn danger" onclick="JM.app.deleteTeamMember('${esc(u.id)}')">Excluir</button>` : "";
+        return `<tr><td><b>${esc(u.nome || "")}</b><br><span class="muted small">${esc(u.uid || u.id)}</span></td><td>${esc(u.email || "")}</td><td><span class="badge info">${esc(roleLabel(u.role))}</span></td><td>${u.active === false ? "Inativo" : "Ativo"}</td><td class="row-actions"><button class="btn" onclick="JM.app.editTeamMember('${esc(u.id)}')">Editar</button>${deleteButton}</td></tr>`;
+      }).join("") +
+      `</tbody></table>` : `<p class="muted">Nenhum usuário.</p>`;
   }
 
   function roleLabel(role) {
@@ -707,6 +809,42 @@
     return OFFICE_ROLES.includes(normalizedRole(role));
   }
 
+  function editTeamMember(id) {
+    if (!isAdmin()) return toast("Somente gestor/dono pode editar funcionários.", "danger");
+    const user = state.users[id];
+    if (!user) return toast("Funcionário não encontrado.", "danger");
+    state.editingUserId = id;
+    showView("equipe");
+    setValue("teamName", user.nome || "");
+    setValue("teamEmail", user.email || "");
+    setValue("teamRole", normalizedRole(user.role) === "motorista" ? "driver" : normalizedRole(user.role || "driver"));
+    setValue("teamActive", user.active === false ? "false" : "true");
+    setValue("teamPass", "");
+    if ($("teamEmail")) $("teamEmail").readOnly = true;
+    if ($("teamPass")) $("teamPass").placeholder = "deixe em branco para manter";
+    setSubmitText("teamForm", "Salvar alterações do funcionário");
+    if ($("teamCancelEdit")) $("teamCancelEdit").classList.remove("hidden");
+    toast("Edite o funcionário e salve as alterações.", "ok");
+  }
+
+  async function deleteTeamMember(id) {
+    if (!isAdmin()) return toast("Somente gestor/dono pode excluir funcionários.", "danger");
+    if (id === state.user?.uid) return toast("Você não pode excluir o próprio usuário logado.", "danger");
+    const user = state.users[id];
+    if (!user) return toast("Funcionário não encontrado.", "danger");
+    const email = String(user.email || "").toLowerCase().trim();
+    if (!window.confirm(`Excluir ${user.nome || email || "este funcionário"} do painel JM? O login no Firebase Auth deve ser removido pelo Console ou por uma Cloud Function.`)) return;
+    const batch = db.batch();
+    batch.delete(db.collection("users").doc(id));
+    if (email) {
+      batch.delete(db.collection("managerAccess").doc(email));
+      batch.delete(db.collection("driverAccess").doc(email));
+    }
+    await batch.commit();
+    if (state.editingUserId === id) resetTeamForm();
+    toast("Funcionário removido do painel.", "ok");
+  }
+
   $("teamForm").onsubmit = async (e) => {
     e.preventDefault();
     if (!isAdmin()) return toast("Somente gestor/gerente pode editar equipe.", "danger");
@@ -715,13 +853,16 @@
     const selectedRole = normalizedRole($("teamRole").value || "driver");
     const isDriverRole = DRIVER_ROLES.includes(selectedRole);
     const isOfficeRole = roleCanAccessJM(selectedRole);
+    const editingId = state.editingUserId;
 
-    if (!isDriverRole && !isOfficeRole) return toast("Perfil invÃ¡lido.", "danger");
+    if (!isDriverRole && !isOfficeRole) return toast("Perfil inválido.", "danger");
     if (isDriverRole && await emailReservedForManager(email)) {
-      return toast("Este e-mail estÃ¡ liberado como gestor/equipe interna. Ele nÃ£o pode ser salvo como motorista.", "danger");
+      return toast("Este e-mail está liberado como gestor/equipe interna. Ele não pode ser salvo como motorista.", "danger");
     }
+    if (!editingId && !pass) return toast("Informe uma senha inicial para criar o usuário no Firebase Auth.", "danger");
+    if (editingId && pass) return toast("Senha de usuário existente deve ser redefinida no Firebase Authentication.", "danger");
 
-    let uid = uidSafe(email);
+    let uid = editingId || uidSafe(email);
     if (pass) {
       if (pass.length < 6) return toast("Informe uma senha inicial com pelo menos 6 caracteres.", "danger");
       try {
@@ -754,16 +895,18 @@
     const accessPayload = Object.assign({ createdAt: new Date().toISOString() }, payload);
     if (isOfficeRole) {
       await db.collection("managerAccess").doc(email).set(accessPayload, { merge: true });
+      await db.collection("driverAccess").doc(email).delete().catch(() => {});
     }
     if (isDriverRole) {
       try {
         await db.collection("driverAccess").doc(email).set(accessPayload, { merge: true });
+        await db.collection("managerAccess").doc(email).delete().catch(() => {});
       } catch (err) {
         toast("Motorista salvo, mas driverAccess foi bloqueado. Publique as novas firestore.rules para liberar o primeiro login.", "danger");
         return;
       }
     }
-    e.target.reset();
+    resetTeamForm();
     toast(roleLabel(selectedRole) + " salvo na equipe.", "ok");
   };
 
@@ -771,7 +914,7 @@
     const myCalls = Object.values(state.calls).filter((c) => isAdmin() || c.driverId === state.user?.uid);
     $("driverCalls").innerHTML = myCalls.length ? myCalls.map((c) => {
       const route = callRoutePoints(c);
-      return `<div class="card" style="margin-bottom:12px"><div class="actions"><div><b>${esc(c.protocolo || c.cliente)}</b><br><span class="muted small">${esc(c.originLabel || "")} â†’ ${esc(c.destLabel || "")}</span></div><span class="badge ${statusClass(c.status)}">${esc(c.status || "")}</span></div><p>${esc(c.notes || "")}</p><p><b>${routeKm(c)} km</b></p>${route.origin && route.destination ? `<a class="btn primary" target="_blank" href="https://www.google.com/maps/dir/${route.origin.lat},${route.origin.lng}/${route.destination.lat},${route.destination.lng}">Abrir rota</a>` : ""}</div>`;
+      return `<div class="card" style="margin-bottom:12px"><div class="actions"><div><b>${esc(c.protocolo || c.cliente)}</b><br><span class="muted small">${esc(c.originLabel || "")} → ${esc(c.destLabel || "")}</span></div><span class="badge ${statusClass(c.status)}">${esc(c.status || "")}</span></div><p>${esc(c.notes || "")}</p><p><b>${routeKm(c)} km</b></p>${route.origin && route.destination ? `<a class="btn primary" target="_blank" href="https://www.google.com/maps/dir/${route.origin.lat},${route.origin.lng}/${route.destination.lat},${route.destination.lng}">Abrir rota</a>` : ""}</div>`;
     }).join("") : `<p class="muted">Nenhum chamado.</p>`;
   }
 
@@ -790,16 +933,16 @@
     };
     await db.collection("expenses").add(data);
     e.target.reset();
-    toast("Despesa enviada para aprovaÃ§Ã£o.", "ok");
+    toast("Despesa enviada para aprovação.", "ok");
   });
 
   function renderFinance() {
     const rows = Object.values(state.transactions).sort((a, b) => String(b.createdAt || b.date || "").localeCompare(String(a.createdAt || a.date || "")));
-    $("financeTable").innerHTML = `<table><thead><tr><th>Data</th><th>Tipo</th><th>DescriÃ§Ã£o</th><th>Status</th><th>Valor</th></tr></thead><tbody>` +
+    $("financeTable").innerHTML = `<table><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Status</th><th>Valor</th></tr></thead><tbody>` +
       rows.map((t) => `<tr><td>${esc(t.date || dateTime(t.createdAt))}</td><td>${esc(t.type || "")}</td><td>${esc(t.description || "")}</td><td>${esc(t.status || "")}</td><td><b>${money(t.amount || 0)}</b></td></tr>`).join("") +
       `</tbody></table>${reportSignature()}`;
     const pending = Object.values(state.expenses).filter((e) => e.status === "pendente");
-    $("expenseApproval").innerHTML = `<table><thead><tr><th>Motorista</th><th>Tipo</th><th>Valor</th><th>Obs</th><th>AÃ§Ãµes</th></tr></thead><tbody>` +
+    $("expenseApproval").innerHTML = `<table><thead><tr><th>Motorista</th><th>Tipo</th><th>Valor</th><th>Obs</th><th>Ações</th></tr></thead><tbody>` +
       pending.map((e) => `<tr>
         <td>${esc(e.driverName || e.driverId)}</td><td>${esc(e.type || "")}</td><td><b>${money(e.amount || 0)}</b></td>
         <td>${esc(e.notes || "")}${e.photoUrl ? `<br><a class="info" href="${esc(e.photoUrl)}" target="_blank">Comprovante</a>` : ""}</td>
@@ -809,7 +952,7 @@
 
   $("financeForm").onsubmit = async (e) => {
     e.preventDefault();
-    if (!isAdmin()) return toast("Somente gestor/financeiro pode lanÃ§ar.", "danger");
+    if (!isAdmin()) return toast("Somente gestor/financeiro pode lançar.", "danger");
     await db.collection("transactions").add({
       type: $("finType").value,
       date: $("finDate").value,
@@ -821,7 +964,7 @@
     });
     e.target.reset();
     $("finDate").value = todayInput();
-    toast("LanÃ§amento salvo.", "ok");
+    toast("Lançamento salvo.", "ok");
   };
 
   async function approveExpense(id) {
@@ -840,7 +983,7 @@
       createdAt: new Date().toISOString(),
       createdBy: state.user.uid
     });
-    toast("Despesa aprovada e lanÃ§ada no financeiro.", "ok");
+    toast("Despesa aprovada e lançada no financeiro.", "ok");
   }
 
   async function rejectExpense(id) {
@@ -868,6 +1011,8 @@
     if ($("btnSmartRoute")) $("btnSmartRoute").onclick = calculateSmartRoute;
     if ($("btnOpenGoogleRoute")) $("btnOpenGoogleRoute").onclick = openGoogleRouteFromForm;
     if ($("btnSyncTrackerNow")) $("btnSyncTrackerNow").onclick = () => syncTrackerNow(true);
+    if ($("callCancelEdit")) $("callCancelEdit").onclick = resetCallForm;
+    if ($("teamCancelEdit")) $("teamCancelEdit").onclick = resetTeamForm;
   }
 
   function boot() {
@@ -881,6 +1026,18 @@
   }
 
   window.JM = window.JM || {};
-  window.JM.app = { setCallStatus, approveExpense, rejectExpense, applySmartVehicle, calculateSmartRoute, syncTrackerNow, state };
+  window.JM.app = {
+    setCallStatus,
+    editCall,
+    deleteCall,
+    editTeamMember,
+    deleteTeamMember,
+    approveExpense,
+    rejectExpense,
+    applySmartVehicle,
+    calculateSmartRoute,
+    syncTrackerNow,
+    state
+  };
   boot();
 }());

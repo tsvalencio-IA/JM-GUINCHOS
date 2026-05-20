@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = "jm-guinchos-v15-driver-login";
+﻿const CACHE_NAME = "jm-guinchos-v16-admin-actions";
 const ASSETS = [
   "./",
   "./index.html",

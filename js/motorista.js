@@ -1,17 +1,17 @@
-﻿(function () {
+(function () {
   "use strict";
 
   const { $, esc, money, parseMoney, dateTime, toast, statusClass, routeKm, mapsRouteUrl } = window.JM.utils;
   const { auth, db, arrayUnion } = window.JM.firebase;
   const cfg = window.JM_CONFIG || {};
-  const DRIVER_FLOW_VERSION = "jm-driver-login-v15";
+  const DRIVER_FLOW_VERSION = "jm-admin-actions-v16";
   const state = { user: null, profile: null, calls: {}, vehicles: {}, expenses: {}, settings: {} };
   const unsubscribers = [];
 
   function friendlyAuthError(err) {
     const code = err && err.code || "";
-    if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "UsuÃ¡rio ou senha invÃ¡lidos.";
-    return "Acesso negado: " + (err && err.message || "falha de autenticaÃ§Ã£o");
+    if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "Usuário ou senha inválidos.";
+    return "Acesso negado: " + (err && err.message || "falha de autenticação");
   }
 
   function stopListeners() {
@@ -173,7 +173,7 @@
           <button class="btn" onclick="JM.motorista.setStatus('${esc(call.id)}','Finalizado')">Finalizar</button>
         </div>
       </div>`;
-    }).join("") + `<div class="report-signature">Powered by thIAguinho SoluÃ§Ãµes Digitais</div>` : `<p class="muted">Nenhum chamado vinculado ao seu usuÃ¡rio.</p>`;
+    }).join("") + `<div class="report-signature">Powered by thIAguinho Soluções Digitais</div>` : `<p class="muted">Nenhum chamado vinculado ao seu usuário.</p>`;
   }
 
   function renderExpenseSelects() {
@@ -209,7 +209,7 @@
     e.preventDefault();
     const photo = $("driverExpensePhoto").files && $("driverExpensePhoto").files[0];
     let photoUrl = "";
-    try { photoUrl = await uploadToCloudinary(photo); } catch (err) { toast("Foto nÃ£o enviada: " + err.message, "danger"); }
+    try { photoUrl = await uploadToCloudinary(photo); } catch (err) { toast("Foto não enviada: " + err.message, "danger"); }
     await db.collection("expenses").add({
       callId: $("driverExpenseCall").value,
       vehicleId: $("driverExpenseVehicle").value,
@@ -224,7 +224,7 @@
       createdBy: state.user.uid
     });
     e.target.reset();
-    toast("Despesa enviada para aprovaÃ§Ã£o.", "ok");
+    toast("Despesa enviada para aprovação.", "ok");
   };
 
   window.JM = window.JM || {};
