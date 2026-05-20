@@ -47,11 +47,16 @@
     const container = document.getElementById(containerId);
     if (!container) return;
     const located = Object.values(vehicles || {}).filter((v) => v.location && Number.isFinite(Number(v.location.lat)) && Number.isFinite(Number(v.location.lng)));
-    if (!located.length) {
+    const routedCalls = Object.values(calls || {}).filter((c) => !["Finalizado", "Cancelado"].includes(c.status)).map((call) => ({
+      call,
+      vehicle: vehicles && vehicles[call.vehicleId],
+      pts: callRoutePoints(call, vehicles && vehicles[call.vehicleId])
+    })).filter((row) => row.pts.length);
+    if (!located.length && !routedCalls.length) {
       container.innerHTML = `<div style="height:100%;display:grid;place-items:center;padding:24px;text-align:center;background:#07111f">
         <div>
-          <h3>Tracker aguardando configuração</h3>
-          <p class="muted small">Configure endpoint, token e IDs dos rastreadores no <b>superadmin.html</b>. Depois clique em <b>Sincronizar Tracker</b> no superadmin.html.</p>
+          <h3>Mapa aguardando dados reais</h3>
+          <p class="muted small">Configure o tracker no <b>superadmin.html</b> ou registre um chamado com origem/destino validados para aparecer no mapa.</p>
         </div>
       </div>`;
       return;
@@ -70,17 +75,19 @@
         bounds.push(p);
         L.marker(p).addTo(map).bindPopup(`<b>${esc(vehicle.placa || "")}</b><br>${esc(vehicle.apelido || vehicle.tipo || "")}<br>${esc(vehicle.trackerStatus || "")}`);
       });
-      Object.values(calls || {}).filter((c) => !["Finalizado", "Cancelado"].includes(c.status)).forEach((call) => {
-        const vehicle = vehicles && vehicles[call.vehicleId];
-        const pts = callRoutePoints(call, vehicle);
+      routedCalls.forEach(({ call, pts }) => {
+        pts.forEach((p) => {
+          bounds.push([p.point.lat, p.point.lng]);
+          L.circleMarker([p.point.lat, p.point.lng], { radius: 6, weight: 2 }).addTo(map).bindPopup(`<b>${esc(p.label || "Ponto")}</b><br>${esc(call.protocolo || call.cliente || "Chamado")}`);
+        });
         if (pts.length >= 2) {
           const latlngs = pts.map((p) => [p.point.lat, p.point.lng]);
-          latlngs.forEach((p) => bounds.push(p));
           L.polyline(latlngs, { color: "#22c55e", weight: 5, opacity: 0.75 }).addTo(map)
             .bindPopup(`${esc(call.protocolo || "Chamado")} - ${routeKm(pts).toFixed(1)} km estimados`);
         }
       });
-      map.fitBounds(bounds, { padding: [32, 32] });
+      if (bounds.length === 1) map.setView(bounds[0], 14);
+      else map.fitBounds(bounds, { padding: [32, 32] });
       setTimeout(() => map.invalidateSize(), 120);
     } catch (err) {
       console.warn(err);

@@ -21,26 +21,34 @@ window.JM_CONFIG = {
     // E-mails que podem acessar o jm.html e o superadmin.html.
     // Adicione aqui o e-mail real do dono/gestor antes de publicar.
     adminEmails: [
-      "jm@jm.com",
+      "jmguinchos@ts.com",
       "tsvalencio@gmail.com"
     ],
     superadminEmails: [
-      "jm@jm.com",
+      "jmguinchos@ts.com",
       "tsvalencio@gmail.com"
     ],
     // Correção do fluxo: se um e-mail gestor ficou salvo por engano como motorista,
     // o jm.html tenta reparar o perfil para admin em vez de mandar para motorista.html.
     autoRepairGestorLogin: true
   },
+  googleMaps: {
+    // Preencha pelo superadmin para ativar endereço Google, geocodificação, autocomplete e rota inteligente.
+    // APIs recomendadas no Google Cloud: Maps JavaScript API, Places API e Geocoding API.
+    apiKey: "",
+    language: "pt-BR",
+    region: "BR",
+    country: "br",
+    center: { lat: -20.8113, lng: -49.3758 },
+    radiusMeters: 90000
+  },
   tracker: {
-  platformUrl: "https://gps2.rafacarrastreadores.com.br",
-  endpoint: "https://gps2.rafacarrastreadores.com.br/api",
-  socketUrl: "wss://gps2.rafacarrastreadores.com.br/api/socket",
-  token: "RjBEAiBIfZbqwxwwx4sflEv1MKhRihZ9u6D3zDUmThyl4Eli1QIgNwK-0XsQUZqgb9YZzZLVrU1bVYVQbri_07sv290x9LV7InUiOjI1LCJlIjoiMjAyNi0xMS0xMFQwMDozODoxMy4zNDkrMDA6MDAifQ",
-  tokenHeader: "Authorization",
-  tokenPrefix: "Bearer ",
-  pollingMs: 30000,
-}
+    platformUrl: "https://gps2.rafacarrastreadores.com.br",
+    endpoint: "",
+    token: "",
+    tokenHeader: "Authorization",
+    tokenPrefix: "Bearer ",
+    pollingMs: 30000,
     vehicles: {
       FHA4B30: {
         placa: "FHA4B30",

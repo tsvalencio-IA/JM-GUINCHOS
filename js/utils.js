@@ -75,18 +75,40 @@
     return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
   }
 
-  function callRoutePoints(call, vehicle) {
-    const points = [];
-    if (vehicle && vehicle.location) points.push({ label: vehicle.placa || "Veiculo", point: vehicle.location });
-    if (call && call.origem && call.origem.coords) points.push({ label: "Origem", point: call.origem.coords });
-    if (call && call.destino && call.destino.coords) points.push({ label: "Destino", point: call.destino.coords });
-    return points.filter((p) => coords(p.point.lat, p.point.lng));
+  function pointFrom(value) {
+    if (!value) return null;
+    if (value.coords) return pointFrom(value.coords);
+    if (value.location) return pointFrom(value.location);
+    return coords(value.lat, value.lng);
   }
 
-  function routeKm(points) {
+  function callRoutePoints(call, vehicle) {
+    const points = [];
+    const vehiclePoint = pointFrom(vehicle && vehicle.location);
+    const originPoint = pointFrom(call && (call.origem || call.origin));
+    const destinationPoint = pointFrom(call && (call.destino || call.destination));
+    if (vehiclePoint) points.push({ label: vehicle && (vehicle.placa || vehicle.apelido) || "Veículo", point: vehiclePoint });
+    if (originPoint) points.push({ label: call && (call.originLabel || call.origem && call.origem.label) || "Origem", point: originPoint });
+    if (destinationPoint) points.push({ label: call && (call.destLabel || call.destino && call.destino.label) || "Destino", point: destinationPoint });
+    return points;
+  }
+
+  function routeKm(input, vehicle) {
+    const points = Array.isArray(input) ? input : callRoutePoints(input, vehicle);
     let total = 0;
     for (let i = 1; i < points.length; i += 1) total += haversineKm(points[i - 1].point, points[i].point);
     return total;
+  }
+
+  function mapsRouteUrl(input, vehicle) {
+    const points = Array.isArray(input) ? input : callRoutePoints(input, vehicle);
+    const clean = points.map((p) => pointFrom(p.point || p)).filter(Boolean);
+    if (clean.length < 2) return "";
+    const q = new URLSearchParams({ api: "1", travelmode: "driving" });
+    q.set("origin", clean[0].lat + "," + clean[0].lng);
+    q.set("destination", clean[clean.length - 1].lat + "," + clean[clean.length - 1].lng);
+    if (clean.length > 2) q.set("waypoints", clean.slice(1, -1).map((p) => p.lat + "," + p.lng).join("|"));
+    return "https://www.google.com/maps/dir/?" + q.toString();
   }
 
   function toast(message, type) {
@@ -110,6 +132,6 @@
   window.JM = window.JM || {};
   window.JM.utils = {
     $, $all, esc, money, parseMoney, dateTime, todayInput, slug, plateKey,
-    uidSafe, coords, haversineKm, callRoutePoints, routeKm, toast, statusClass
+    uidSafe, coords, pointFrom, haversineKm, callRoutePoints, routeKm, mapsRouteUrl, toast, statusClass
   };
 }());

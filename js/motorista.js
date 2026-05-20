@@ -1,9 +1,10 @@
 (function () {
   "use strict";
 
-  const { $, esc, money, parseMoney, dateTime, toast, statusClass } = window.JM.utils;
+  const { $, esc, money, parseMoney, dateTime, toast, statusClass, routeKm, mapsRouteUrl } = window.JM.utils;
   const { auth, db, arrayUnion } = window.JM.firebase;
   const cfg = window.JM_CONFIG || {};
+  const DRIVER_FLOW_VERSION = "jm-google-rotas-v11";
   const state = { user: null, profile: null, calls: {}, vehicles: {}, expenses: {}, settings: {} };
   const unsubscribers = [];
 
@@ -92,15 +93,18 @@
     const calls = Object.values(state.calls).sort((a, b) => Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0));
     $("driverCallsBox").innerHTML = calls.length ? calls.map((call) => {
       const vehicle = state.vehicles[call.vehicleId] || {};
+      const url = call.routeUrl || mapsRouteUrl(call, vehicle);
+      const km = routeKm(call, vehicle);
       return `<div class="card" style="margin-bottom:10px">
         <div class="actions" style="justify-content:space-between">
           <div><b>${esc(call.protocolo || call.id)}</b><br><span class="muted small">${esc(call.cliente || "")} - ${esc(vehicle.placa || "")}</span></div>
           <span class="badge ${statusClass(call.status)}">${esc(call.status || "Novo")}</span>
         </div>
-        <p class="small"><b>Origem:</b> ${esc(call.origem?.label || "-")}<br><b>Destino:</b> ${esc(call.destino?.label || "-")}<br><b>Valor previsto:</b> ${money(call.valor || 0)}</p>
+        <p class="small"><b>Origem:</b> ${esc(call.origem?.label || call.originLabel || "-")}<br><b>Destino:</b> ${esc(call.destino?.label || call.destLabel || "-")}<br><b>Rota:</b> ${km ? km.toFixed(1).replace(".", ",") + " km estimados" : "aguardando coordenadas"}<br><b>Valor previsto:</b> ${money(call.valor || 0)}</p>
         <div class="actions">
+          ${url ? `<a class="btn good" target="_blank" href="${esc(url)}">Abrir rota Google</a>` : ""}
           <button class="btn primary" onclick="JM.motorista.setStatus('${esc(call.id)}','Em Atendimento')">Iniciar</button>
-          <button class="btn good" onclick="JM.motorista.setStatus('${esc(call.id)}','Finalizado')">Finalizar</button>
+          <button class="btn" onclick="JM.motorista.setStatus('${esc(call.id)}','Finalizado')">Finalizar</button>
         </div>
       </div>`;
     }).join("") + `<div class="report-signature">Powered by thIAguinho Soluções Digitais</div>` : `<p class="muted">Nenhum chamado vinculado ao seu usuário.</p>`;
@@ -159,5 +163,5 @@
 
   window.JM = window.JM || {};
   window.JM.motorista = { setStatus, state };
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch(() => {});
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js?v=" + DRIVER_FLOW_VERSION).catch(() => {});
 }());

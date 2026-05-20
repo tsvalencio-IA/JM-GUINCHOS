@@ -96,6 +96,7 @@
   function renderSettings() {
     const tracker = Object.assign({}, cfg.tracker || {}, settings.tracker || {});
     const cloud = Object.assign({}, cfg.cloudinary || {}, settings.cloudinary || {});
+    const googleMaps = Object.assign({}, cfg.googleMaps || {}, settings.googleMaps || {});
     $("trackerPlatform").value = tracker.platformUrl || "";
     $("trackerEndpoint").value = tracker.endpoint || "";
     $("trackerToken").value = tracker.token || "";
@@ -106,6 +107,12 @@
     $("trackerDaj").value = tracker.vehicles && tracker.vehicles.DAJ6J95 && tracker.vehicles.DAJ6J95.trackerId || "DAJ6J95";
     $("superCloudName").value = cloud.cloudName || "";
     $("superCloudPreset").value = cloud.uploadPreset || "";
+    $("superGoogleMapsKey").value = googleMaps.apiKey || "";
+    $("superGoogleMapsLanguage").value = googleMaps.language || "pt-BR";
+    $("superGoogleMapsRegion").value = googleMaps.region || "BR";
+    $("superGoogleMapsCenterLat").value = googleMaps.center && googleMaps.center.lat || -20.8113;
+    $("superGoogleMapsCenterLng").value = googleMaps.center && googleMaps.center.lng || -49.3758;
+    $("superGoogleMapsRadius").value = googleMaps.radiusMeters || 90000;
   }
 
   function currentVehicles() {
@@ -131,6 +138,7 @@
     batch.set(db.collection("settings").doc("integrations"), {
       tracker: Object.assign({}, cfg.tracker || {}, settings.tracker || {}, { vehicles: currentVehicles() }),
       cloudinary: Object.assign({}, cfg.cloudinary || {}, settings.cloudinary || {}),
+      googleMaps: Object.assign({}, cfg.googleMaps || {}, settings.googleMaps || {}),
       updatedAt: now
     }, { merge: true });
     await batch.commit();
@@ -202,25 +210,88 @@
     toast("Cloudinary salvo.", "ok");
   };
 
+  $("superGoogleMapsForm").onsubmit = async (e) => {
+    e.preventDefault();
+    await db.collection("settings").doc("integrations").set({
+      googleMaps: {
+        apiKey: $("superGoogleMapsKey").value.trim(),
+        language: $("superGoogleMapsLanguage").value.trim() || "pt-BR",
+        region: $("superGoogleMapsRegion").value.trim() || "BR",
+        country: "br",
+        center: {
+          lat: Number(String($("superGoogleMapsCenterLat").value || "-20.8113").replace(",", ".")),
+          lng: Number(String($("superGoogleMapsCenterLng").value || "-49.3758").replace(",", "."))
+        },
+        radiusMeters: Number($("superGoogleMapsRadius").value || 90000)
+      },
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    toast("Google Maps salvo. O jm.html usará endereço validado, autocomplete e rota inteligente.", "ok");
+  };
+
   $("adminUserForm").onsubmit = async (e) => {
     e.preventDefault();
     const email = $("adminEmail").value.trim().toLowerCase();
     const pass = $("adminPass").value;
+    const nome = $("adminName").value.trim();
     if (!pass || pass.length < 6) return toast("Senha mínima: 6 caracteres.", "danger");
+
+    const managerPayload = {
+      nome,
+      email,
+      role: "admin",
+      active: true,
+      updatedAt: new Date().toISOString(),
+      updatedBy: auth.currentUser && auth.currentUser.uid || "",
+      source: "superadmin-adminUserForm"
+    };
+
     try {
-      const cred = await secondaryAuth.createUserWithEmailAndPassword(email, pass);
-      await secondaryAuth.signOut().catch(() => {});
+      // Registro por e-mail: esta é a proteção definitiva para o gestor nunca virar motorista.
+      // Mesmo que o UID já exista no Auth ou tenha sido salvo antes como driver, o jm.html
+      // consegue ler managerAccess/{email} e reparar users/{uid} para admin no primeiro login.
+      await db.collection("managerAccess").doc(email).set(Object.assign({ createdAt: new Date().toISOString() }, managerPayload), { merge: true });
+
+      // Corrige imediatamente qualquer documento antigo em users que tenha esse e-mail
+      // salvo por engano como driver/motorista, inclusive quando o ID do documento não é o UID real.
+      const oldUsers = await db.collection("users").where("email", "==", email).get();
+      if (!oldUsers.empty) {
+        const batch = db.batch();
+        oldUsers.forEach((doc) => {
+          batch.set(doc.ref, Object.assign({}, managerPayload, {
+            role: "admin",
+            active: true,
+            fixedFromRole: "driver/motorista",
+            fixedAt: new Date().toISOString()
+          }), { merge: true });
+        });
+        await batch.commit();
+      }
+
+      let cred = null;
+      try {
+        cred = await secondaryAuth.createUserWithEmailAndPassword(email, pass);
+        await secondaryAuth.signOut().catch(() => {});
+      } catch (err) {
+        if (!(err && err.code === "auth/email-already-in-use")) throw err;
+        e.target.reset();
+        toast("Este e-mail já existia no Auth. Ele foi liberado como gestor; ao entrar no jm.html o perfil será corrigido para admin. Se a senha não for essa, redefina no Firebase Authentication.", "ok");
+        return;
+      }
+
       await db.collection("users").doc(cred.user.uid).set({
         uid: cred.user.uid,
-        nome: $("adminName").value.trim(),
+        nome,
         email,
         role: "admin",
         active: true,
         createdAt: new Date().toISOString(),
-        createdBy: auth.currentUser && auth.currentUser.uid || ""
+        updatedAt: new Date().toISOString(),
+        createdBy: auth.currentUser && auth.currentUser.uid || "",
+        source: "superadmin-adminUserForm"
       }, { merge: true });
       e.target.reset();
-      toast("Gestor criado no Auth e no Firestore.", "ok");
+      toast("Gestor criado como ADMIN no Auth, em managerAccess e em users. Não será cadastrado como motorista.", "ok");
     } catch (err) {
       toast(friendlyAuthError(err), "danger");
     }

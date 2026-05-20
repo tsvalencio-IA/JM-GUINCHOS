@@ -1,11 +1,11 @@
 (function () {
   "use strict";
 
-  const { $, $all, esc, money, parseMoney, dateTime, todayInput, plateKey, uidSafe, coords, callRoutePoints, routeKm, toast, statusClass } = window.JM.utils;
+  const { $, $all, esc, money, parseMoney, dateTime, todayInput, plateKey, uidSafe, coords, pointFrom, callRoutePoints, routeKm, mapsRouteUrl, toast, statusClass } = window.JM.utils;
   const { auth, secondaryAuth, db, ts, arrayUnion, emailIsAdmin } = window.JM.firebase;
   const cfg = window.JM_CONFIG || {};
   const SYSTEM_SIGNATURE = "Powered by thIAguinho Soluções Digitais";
-  const LOGIN_FLOW_VERSION = "jm-login-definitivo-v9";
+  const LOGIN_FLOW_VERSION = "jm-google-rotas-v11";
 
   const state = {
     user: null,
@@ -15,7 +15,9 @@
     users: {},
     expenses: {},
     transactions: {},
-    settings: {}
+    settings: {},
+    addresses: { origin: null, destination: null },
+    smartRoute: null
   };
 
   const unsubscribers = [];
@@ -32,6 +34,180 @@
 
   function activeCloudinaryConfig() {
     return Object.assign({}, cfg.cloudinary || {}, state.settings.cloudinary || {});
+  }
+
+  function activeGoogleSettings() {
+    return state.settings || {};
+  }
+
+  function addressStatus(id, message, type) {
+    const el = $(id);
+    if (!el) return;
+    el.textContent = message;
+    el.className = "small geo-status " + (type || "muted");
+  }
+
+  function setAddress(kind, address) {
+    const isOrigin = kind === "origin";
+    const labelId = isOrigin ? "callOriginLabel" : "callDestLabel";
+    const latId = isOrigin ? "callOriginLat" : "callDestLat";
+    const lngId = isOrigin ? "callOriginLng" : "callDestLng";
+    const statusId = isOrigin ? "originGeoStatus" : "destGeoStatus";
+    const point = pointFrom(address && (address.coords || address));
+    const normalized = {
+      label: address && address.label || $(labelId).value.trim(),
+      coords: point,
+      placeId: address && address.placeId || "",
+      source: address && address.source || "manual",
+      resolvedAt: address && address.resolvedAt || new Date().toISOString()
+    };
+    state.addresses[kind] = normalized;
+    if (normalized.label) $(labelId).value = normalized.label;
+    if (point) {
+      $(latId).value = String(point.lat);
+      $(lngId).value = String(point.lng);
+      addressStatus(statusId, "Endereço validado: " + normalized.label + " (" + point.lat.toFixed(6) + ", " + point.lng.toFixed(6) + ")", "ok");
+    } else {
+      addressStatus(statusId, "Endereço ainda sem coordenadas. Valide pelo Google ou informe latitude/longitude.", "danger");
+    }
+    state.smartRoute = null;
+    renderSmartRouteBox();
+    return normalized;
+  }
+
+  function addressFromInputs(kind) {
+    const isOrigin = kind === "origin";
+    const label = $(isOrigin ? "callOriginLabel" : "callDestLabel").value.trim();
+    const point = coords($(isOrigin ? "callOriginLat" : "callDestLat").value, $(isOrigin ? "callOriginLng" : "callDestLng").value);
+    const existing = state.addresses[kind] || {};
+    if (!label && !point) return null;
+    return {
+      label: label || existing.label || "",
+      coords: point || existing.coords || null,
+      placeId: existing.placeId || "",
+      source: existing.source || (point ? "manual_coords" : "manual_text"),
+      resolvedAt: existing.resolvedAt || new Date().toISOString()
+    };
+  }
+
+  function initializeGoogleAddressTools() {
+    const gm = window.JM.googleMaps;
+    if (!gm) return;
+    if (!gm.isConfigured(activeGoogleSettings())) {
+      addressStatus("originGeoStatus", "Google Maps ainda sem chave. Configure no superadmin para autocomplete e rota com dados do Google.", "warn");
+      return;
+    }
+    gm.initAutocomplete("callOriginLabel", (addr) => setAddress("origin", addr), activeGoogleSettings()).catch((err) => addressStatus("originGeoStatus", err.message, "danger"));
+    gm.initAutocomplete("callDestLabel", (addr) => setAddress("destination", addr), activeGoogleSettings()).catch((err) => addressStatus("destGeoStatus", err.message, "danger"));
+    addressStatus("originGeoStatus", "Google Maps ativo: digite o endereço e selecione a sugestão.", "ok");
+    addressStatus("destGeoStatus", "Google Maps ativo: destino pode ser validado por autocomplete ou botão.", "ok");
+  }
+
+  async function geocodeAddress(kind) {
+    const gm = window.JM.googleMaps;
+    const isOrigin = kind === "origin";
+    const labelId = isOrigin ? "callOriginLabel" : "callDestLabel";
+    const statusId = isOrigin ? "originGeoStatus" : "destGeoStatus";
+    try {
+      if (!gm || !gm.isConfigured(activeGoogleSettings())) throw new Error("Configure a chave Google Maps no superadmin antes de validar pelo Google.");
+      addressStatus(statusId, "Consultando Google...", "muted");
+      const addr = await gm.geocode($(labelId).value.trim(), activeGoogleSettings());
+      setAddress(kind, addr);
+      toast((isOrigin ? "Origem" : "Destino") + " validado pelo Google.", "ok");
+    } catch (err) {
+      addressStatus(statusId, err.message, "danger");
+      toast(err.message, "danger");
+    }
+  }
+
+  function useCurrentLocationAsOrigin() {
+    if (!navigator.geolocation) return toast("Este navegador não liberou geolocalização.", "danger");
+    addressStatus("originGeoStatus", "Capturando localização do aparelho...", "muted");
+    navigator.geolocation.getCurrentPosition((pos) => {
+      setAddress("origin", {
+        label: "Localização atual do aparelho",
+        coords: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+        source: "browser_geolocation",
+        resolvedAt: new Date().toISOString()
+      });
+      toast("Localização atual aplicada como origem.", "ok");
+    }, (err) => {
+      addressStatus("originGeoStatus", "Não foi possível obter localização: " + err.message, "danger");
+    }, { enableHighAccuracy: true, timeout: 12000 });
+  }
+
+  function bestSmartRoute() {
+    return state.smartRoute && state.smartRoute.rankings && state.smartRoute.rankings[0] || null;
+  }
+
+  function renderSmartRouteBox() {
+    const box = $("smartRouteBox");
+    if (!box) return;
+    const route = state.smartRoute;
+    if (!route || !route.rankings || !route.rankings.length) {
+      box.innerHTML = "Informe/valide a origem e clique em <b>Traçar rota inteligente</b>. O algoritmo usa posição do tracker, status do veículo, distância e tempo estimado.";
+      return;
+    }
+    box.innerHTML = route.rankings.slice(0, 5).map((r, i) => {
+      const v = r.vehicle || {};
+      const badge = i === 0 ? '<span class="badge ok">RECOMENDADO</span>' : '<span class="badge info">Opção ' + (i + 1) + '</span>';
+      const src = r.toOrigin && r.toOrigin.source === "google_directions" ? "Google" : "estimativa";
+      return `<div class="smart-route-card">
+        <div>${badge} <b>${esc(v.placa || v.id || "Veículo")}</b> <span class="muted">${esc(v.apelido || v.tipo || "")}</span></div>
+        <div>Até a origem: <b>${esc(r.toOrigin.distanceText || r.kmToOrigin.toFixed(1) + " km")}</b> · <b>${esc(r.toOrigin.durationTrafficText || r.toOrigin.durationText || r.minutesToOrigin + " min")}</b> · fonte: ${esc(src)}</div>
+        ${r.serviceRoute ? `<div>Origem → destino: <b>${esc(r.serviceRoute.distanceText || "")}</b> · <b>${esc(r.serviceRoute.durationTrafficText || r.serviceRoute.durationText || "")}</b></div>` : ""}
+        <div class="actions"><button class="btn primary" type="button" onclick="JM.app.applySmartVehicle('${esc(v.id)}')">Usar este veículo</button>${r.routeUrl ? `<a class="btn" target="_blank" href="${esc(r.routeUrl)}">Abrir rota</a>` : ""}</div>
+      </div>`;
+    }).join("");
+  }
+
+  async function calculateSmartRoute() {
+    const gm = window.JM.googleMaps;
+    const origin = addressFromInputs("origin");
+    let destination = addressFromInputs("destination");
+    if (!origin || !origin.coords) {
+      if (origin && origin.label && gm && gm.isConfigured(activeGoogleSettings())) {
+        await geocodeAddress("origin");
+      }
+    }
+    const finalOrigin = addressFromInputs("origin");
+    if (!finalOrigin || !finalOrigin.coords) return toast("Valide a origem no Google ou preencha latitude/longitude antes da rota inteligente.", "danger");
+    if (destination && destination.label && !destination.coords && gm && gm.isConfigured(activeGoogleSettings())) {
+      await geocodeAddress("destination");
+      destination = addressFromInputs("destination");
+    }
+    const located = Object.values(state.vehicles || {}).filter((v) => pointFrom(v.location));
+    if (!located.length) return toast("Nenhum veículo tem posição de tracker. Sincronize o tracker no superadmin primeiro.", "danger");
+    $("smartRouteBox").innerHTML = "Calculando melhor veículo e tempo de rota...";
+    try {
+      const rankings = await gm.rankVehicles(state.vehicles, finalOrigin.coords, destination && destination.coords, activeGoogleSettings());
+      state.smartRoute = { origin: finalOrigin, destination, rankings, calculatedAt: new Date().toISOString() };
+      const best = bestSmartRoute();
+      if (best && !$("callVehicle").value) $("callVehicle").value = best.vehicle.id;
+      renderSmartRouteBox();
+      toast("Rota inteligente calculada.", "ok");
+    } catch (err) {
+      $("smartRouteBox").innerHTML = `<span class="danger">${esc(err.message)}</span>`;
+      toast(err.message, "danger");
+    }
+  }
+
+  function applySmartVehicle(vehicleId) {
+    if ($("callVehicle")) $("callVehicle").value = vehicleId || "";
+    toast("Veículo aplicado ao chamado.", "ok");
+  }
+
+  function openGoogleRouteFromForm() {
+    const vehicle = state.vehicles[$("callVehicle").value] || null;
+    const origin = addressFromInputs("origin");
+    const destination = addressFromInputs("destination");
+    const points = [];
+    if (vehicle && vehicle.location) points.push(vehicle.location);
+    if (origin && origin.coords) points.push(origin.coords);
+    if (destination && destination.coords) points.push(destination.coords);
+    const url = window.JM.googleMaps && window.JM.googleMaps.routeUrl(points) || mapsRouteUrl(points);
+    if (!url) return toast("Valide origem/destino e selecione veículo com posição para abrir a rota.", "danger");
+    window.open(url, "_blank");
   }
 
   function showView(name) {
@@ -71,8 +247,38 @@
       ...(authCfg.adminEmails || []),
       ...(authCfg.superadminEmails || [])
     ].map((e) => String(e).toLowerCase().trim()).filter(Boolean);
-    if (!list.length) return true;
-    return emailIsAdmin(user.email);
+    if (!list.length) return { allowed: true, role: "admin", source: "config-empty" };
+    return emailIsAdmin(user.email) ? { allowed: true, role: "admin", source: "config" } : { allowed: false };
+  }
+
+  async function gestorAccessAllowedByRegistry(user) {
+    const email = String(user && user.email || "").toLowerCase().trim();
+    if (!email) return { allowed: false };
+    try {
+      const snap = await db.collection("managerAccess").doc(email).get();
+      if (!snap.exists) return { allowed: false };
+      const data = snap.data() || {};
+      const role = normalizedRole(data.role || "admin");
+      if (data.active === false) return { allowed: false, reason: "inactive" };
+      if (!GESTOR_ROLES.includes(role)) return { allowed: false, reason: "not-manager-role" };
+      return { allowed: true, role: role === "finance" ? "finance" : "admin", source: "managerAccess" };
+    } catch (err) {
+      console.warn("Falha ao verificar managerAccess", err);
+      return { allowed: false, error: err };
+    }
+  }
+
+  async function emailReservedForManager(email) {
+    const normalized = String(email || "").toLowerCase().trim();
+    if (!normalized) return false;
+    if (emailIsAdmin(normalized)) return true;
+    try {
+      const snap = await db.collection("managerAccess").doc(normalized).get();
+      return snap.exists && (snap.data() || {}).active !== false;
+    } catch (err) {
+      console.warn("Falha ao verificar gestor reservado", err);
+      return false;
+    }
   }
 
   async function saveGestorProfile(ref, profile, existingData) {
@@ -102,17 +308,21 @@
       return { ...current, role: normalizedRole(current.role) === "finance" ? "finance" : "admin" };
     }
 
-    if (!gestorAccessAllowedByConfig(user)) {
-      throw new Error("Este e-mail não está liberado como gestor em js/config.firebase.js. Adicione o e-mail em auth.adminEmails/superadminEmails e publique novamente.");
+    const configAccess = gestorAccessAllowedByConfig(user);
+    const registryAccess = configAccess.allowed ? configAccess : await gestorAccessAllowedByRegistry(user);
+    if (!registryAccess.allowed) {
+      throw new Error("Este e-mail não está liberado como gestor. Crie/libere o gestor no superadmin antes de acessar o jm.html.");
     }
 
     // Correção definitiva do bug: jm.html é painel gestor.
-    // Se o usuário foi criado como driver/motorista por fluxo antigo, repara para admin.
+    // Se o usuário foi criado como driver/motorista por fluxo antigo, repara para admin/financeiro
+    // usando a autorização por e-mail gravada pelo superadmin em managerAccess/{email}.
     const repairedProfile = {
       ...baseProfile,
-      role: "admin",
+      role: registryAccess.role || "admin",
       loginFixedAt: new Date().toISOString(),
-      loginFlowVersion: LOGIN_FLOW_VERSION
+      loginFlowVersion: LOGIN_FLOW_VERSION,
+      managerAccessSource: registryAccess.source || "unknown"
     };
 
     try {
@@ -143,6 +353,7 @@
     ["vehicles", "calls", "users", "expenses", "transactions"].forEach((name) => listenCollection(name, name));
     const settingsUnsub = db.collection("settings").doc("integrations").onSnapshot((snap) => {
       state.settings = snap.exists ? snap.data() : {};
+      initializeGoogleAddressTools();
       renderAll();
     });
     unsubscribers.push(settingsUnsub);
@@ -222,13 +433,22 @@
     refreshMaps();
   }
 
+  function setOptionsPreservingValue(id, html) {
+    const el = $(id);
+    if (!el) return;
+    const current = el.value;
+    el.innerHTML = html;
+    if (current && Array.from(el.options).some((opt) => opt.value === current)) el.value = current;
+  }
+
   function renderSelects() {
     const vehicleOptions = Object.values(state.vehicles).map((v) => `<option value="${esc(v.id)}">${esc(v.placa || v.id)} - ${esc(v.apelido || v.tipo || "")}</option>`).join("");
-    ["callVehicle", "expenseVehicle"].forEach((id) => { if ($(id)) $(id).innerHTML = `<option value="">Selecione</option>${vehicleOptions}`; });
+    setOptionsPreservingValue("callVehicle", `<option value="">Selecione</option>${vehicleOptions}`);
+    setOptionsPreservingValue("expenseVehicle", `<option value="">Selecione</option>${vehicleOptions}`);
     const drivers = Object.values(state.users).filter((u) => u.active !== false && ["driver", "motorista", "admin"].includes(normalizedRole(u.role)));
-    if ($("callDriver")) $("callDriver").innerHTML = `<option value="">Selecione</option>` + drivers.map((u) => `<option value="${esc(u.id)}">${esc(u.nome || u.email)}</option>`).join("");
+    setOptionsPreservingValue("callDriver", `<option value="">Selecione</option>` + drivers.map((u) => `<option value="${esc(u.id)}">${esc(u.nome || u.email)}</option>`).join(""));
     const myCalls = Object.values(state.calls).filter((c) => c.driverId === state.user?.uid && !["Finalizado", "Cancelado"].includes(c.status));
-    if ($("expenseCall")) $("expenseCall").innerHTML = `<option value="">Sem chamado</option>` + myCalls.map((c) => `<option value="${esc(c.id)}">${esc(c.protocolo || c.cliente)}</option>`).join("");
+    setOptionsPreservingValue("expenseCall", `<option value="">Sem chamado</option>` + myCalls.map((c) => `<option value="${esc(c.id)}">${esc(c.protocolo || c.cliente)}</option>`).join(""));
   }
 
   function renderDashboard() {
@@ -255,10 +475,13 @@
     $("callsTable").innerHTML = `<table><thead><tr><th>Protocolo</th><th>Cliente</th><th>Origem/Destino</th><th>Veículo</th><th>Status</th><th>Ações</th></tr></thead><tbody>` + rows.map((c) => {
       const vehicle = state.vehicles[c.vehicleId] || {};
       const driver = state.users[c.driverId] || {};
+      const url = c.routeUrl || mapsRouteUrl(c, vehicle);
+      const km = routeKm(c, vehicle);
+      const metric = c.routeMetrics && c.routeMetrics.bestToOrigin && c.routeMetrics.bestToOrigin.distanceText || (km ? km.toFixed(1).replace(".", ",") + " km" : "Sem rota");
       return `<tr>
         <td><b>${esc(c.protocolo || c.id)}</b><br><span class="muted small">${dateTime(c.createdAt)}</span></td>
         <td>${esc(c.cliente || "")}<br><span class="muted small">${esc(c.phone || "")}</span></td>
-        <td><span class="small">${esc(c.originLabel || "-")}</span><br><span class="muted small">→ ${esc(c.destLabel || "-")}</span><br><b>${routeKm(c)} km</b></td>
+        <td><span class="small">${esc(c.originLabel || c.origem && c.origem.label || "-")}</span><br><span class="muted small">→ ${esc(c.destLabel || c.destino && c.destino.label || "-")}</span><br><b>${esc(metric)}</b>${url ? `<br><a class="info small" target="_blank" href="${esc(url)}">Abrir rota Google</a>` : ""}</td>
         <td>${esc(vehicle.placa || "-")}<br><span class="muted small">${esc(driver.nome || driver.email || "Sem motorista")}</span></td>
         <td><span class="badge ${statusClass(c.status)}">${esc(c.status || "Novo")}</span><br><b>${money(c.valor || 0)}</b></td>
         <td class="row-actions"><button class="btn good" onclick="JM.app.setCallStatus('${esc(c.id)}','Despachado')">Despachar</button><button class="btn primary" onclick="JM.app.setCallStatus('${esc(c.id)}','Em Atendimento')">Atender</button><button class="btn" onclick="JM.app.setCallStatus('${esc(c.id)}','Finalizado')">Finalizar</button></td>
@@ -269,6 +492,17 @@
   $("callForm").onsubmit = async (e) => {
     e.preventDefault();
     if (!isAdmin()) return toast("Somente gestor pode registrar chamado.", "danger");
+    const originAddress = addressFromInputs("origin");
+    const destinationAddress = addressFromInputs("destination");
+    if (!originAddress || !originAddress.coords) {
+      return toast("Antes de registrar, valide a origem no Google ou informe latitude/longitude real.", "danger");
+    }
+    const best = bestSmartRoute();
+    const selectedVehicle = state.vehicles[$("callVehicle").value] || null;
+    const routePoints = [];
+    if (selectedVehicle && selectedVehicle.location) routePoints.push(selectedVehicle.location);
+    routePoints.push(originAddress.coords);
+    if (destinationAddress && destinationAddress.coords) routePoints.push(destinationAddress.coords);
     const protocolo = "JM-" + new Date().toISOString().replace(/\D/g, "").slice(2, 14);
     const data = {
       protocolo,
@@ -278,19 +512,35 @@
       valor: parseMoney($("callPrice").value),
       vehicleId: $("callVehicle").value,
       driverId: $("callDriver").value,
-      originLabel: $("callOriginLabel").value.trim(),
-      destLabel: $("callDestLabel").value.trim(),
-      origin: coords($("callOriginLat").value, $("callOriginLng").value),
-      destination: coords($("callDestLat").value, $("callDestLng").value),
+      originLabel: originAddress.label,
+      destLabel: destinationAddress && destinationAddress.label || "",
+      origin: originAddress.coords,
+      destination: destinationAddress && destinationAddress.coords || null,
+      origem: originAddress,
+      destino: destinationAddress || null,
+      routeUrl: window.JM.googleMaps && window.JM.googleMaps.routeUrl(routePoints) || mapsRouteUrl(routePoints),
+      routeMetrics: best ? {
+        recommendedVehicleId: best.vehicle && best.vehicle.id || "",
+        recommendedVehiclePlate: best.vehicle && best.vehicle.placa || "",
+        bestToOrigin: best.toOrigin || null,
+        serviceRoute: best.serviceRoute || null,
+        calculatedAt: state.smartRoute && state.smartRoute.calculatedAt || new Date().toISOString(),
+        algorithm: "tracker_position + google_directions_or_fallback + status_penalty"
+      } : null,
       status: $("callDriver").value ? "Despachado" : "Novo",
       notes: $("callNotes").value.trim(),
       createdAt: new Date().toISOString(),
       createdBy: state.user.uid,
-      timeline: [{ at: new Date().toISOString(), by: state.profile.nome || state.user.email, text: "Chamado criado" }]
+      timeline: [{ at: new Date().toISOString(), by: state.profile.nome || state.user.email, text: "Chamado criado com endereço validado e rota inteligente" }]
     };
     await db.collection("calls").add(data);
     e.target.reset();
-    toast("Chamado registrado.", "ok");
+    state.addresses = { origin: null, destination: null };
+    state.smartRoute = null;
+    renderSmartRouteBox();
+    addressStatus("originGeoStatus", "Aguardando endereço validado pelo Google.", "muted");
+    addressStatus("destGeoStatus", "Destino opcional, mas recomendado para rota completa.", "muted");
+    toast("Chamado registrado com dados de rota.", "ok");
   };
 
   async function setCallStatus(id, status) {
@@ -356,6 +606,9 @@
     if (!isAdmin()) return toast("Somente gestor pode editar equipe.", "danger");
     const email = $("teamEmail").value.trim().toLowerCase();
     const pass = $("teamPass").value;
+    if (await emailReservedForManager(email)) {
+      return toast("Este e-mail está cadastrado/liberado como gestor. Ele não pode ser salvo como motorista.", "danger");
+    }
     let uid = uidSafe(email);
     if (pass) {
       if (pass.length < 6) return toast("Informe uma senha inicial com pelo menos 6 caracteres para criar o motorista no Auth.", "danger");
@@ -477,14 +730,25 @@
     navigator.serviceWorker.register("service-worker.js?v=" + LOGIN_FLOW_VERSION).catch(() => {});
   }
 
+  function bindRouteButtons() {
+    if ($("btnGeocodeOrigin")) $("btnGeocodeOrigin").onclick = () => geocodeAddress("origin");
+    if ($("btnGeocodeDest")) $("btnGeocodeDest").onclick = () => geocodeAddress("destination");
+    if ($("btnUseCurrentLocation")) $("btnUseCurrentLocation").onclick = useCurrentLocationAsOrigin;
+    if ($("btnSmartRoute")) $("btnSmartRoute").onclick = calculateSmartRoute;
+    if ($("btnOpenGoogleRoute")) $("btnOpenGoogleRoute").onclick = openGoogleRouteFromForm;
+  }
+
   function boot() {
     bindNavigation();
+    bindRouteButtons();
+    renderSmartRouteBox();
+    initializeGoogleAddressTools();
     $("finDate").value = todayInput();
     console.info("JM Guinchos login flow", LOGIN_FLOW_VERSION);
     registerFreshServiceWorker();
   }
 
   window.JM = window.JM || {};
-  window.JM.app = { setCallStatus, approveExpense, rejectExpense, state };
+  window.JM.app = { setCallStatus, approveExpense, rejectExpense, applySmartVehicle, calculateSmartRoute, state };
   boot();
 }());
