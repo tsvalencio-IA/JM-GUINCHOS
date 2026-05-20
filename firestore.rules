@@ -31,6 +31,12 @@ service cloud.firestore {
         && profile().active != false
         && profile().role in ['driver', 'motorista'];
     }
+    function driverPermit() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/driverAccess/$(email()))
+        && get(/databases/$(database)/documents/driverAccess/$(email())).data.active != false
+        && get(/databases/$(database)/documents/driverAccess/$(email())).data.role in ['driver', 'motorista'];
+    }
     function managerPermit() {
       return signedIn()
         && exists(/databases/$(database)/documents/managerAccess/$(email()))
@@ -46,15 +52,29 @@ service cloud.firestore {
         && request.resource.data.active == true
         && request.resource.data.role in ['admin', 'finance', 'gestor', 'gerente', 'owner', 'auxiliar', 'atendente'];
     }
+    function ownDriverRepair(uid) {
+      return signedIn()
+        && request.auth.uid == uid
+        && driverPermit()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == email()
+        && request.resource.data.active == true
+        && request.resource.data.role in ['driver', 'motorista'];
+    }
 
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || resource.data.email == email() || isOffice() || isManager());
-      allow create: if signedIn() && (request.auth.uid == uid || isManager() || ownOfficeRepair(uid));
-      allow update: if isManager() || ownOfficeRepair(uid) || request.auth.uid == uid;
+      allow create: if signedIn() && (request.auth.uid == uid || isManager() || ownOfficeRepair(uid) || ownDriverRepair(uid));
+      allow update: if isManager() || ownOfficeRepair(uid) || ownDriverRepair(uid) || request.auth.uid == uid;
       allow delete: if isManager();
     }
 
     match /managerAccess/{emailId} {
+      allow read: if signedIn() && (emailId == email() || isManager() || bootstrapAdminEmail());
+      allow create, update, delete: if isManager() || bootstrapAdminEmail();
+    }
+
+    match /driverAccess/{emailId} {
       allow read: if signedIn() && (emailId == email() || isManager() || bootstrapAdminEmail());
       allow create, update, delete: if isManager() || bootstrapAdminEmail();
     }

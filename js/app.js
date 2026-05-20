@@ -1,11 +1,11 @@
-(function () {
+﻿(function () {
   "use strict";
 
   const { $, $all, esc, money, parseMoney, dateTime, todayInput, plateKey, uidSafe, coords, pointFrom, callRoutePoints, routeKm, mapsRouteUrl, toast, statusClass } = window.JM.utils;
   const { auth, secondaryAuth, db, ts, arrayUnion, emailIsAdmin } = window.JM.firebase;
   const cfg = window.JM_CONFIG || {};
-  const SYSTEM_SIGNATURE = "Powered by thIAguinho Soluções Digitais";
-  const LOGIN_FLOW_VERSION = "jm-professional-v13";
+  const SYSTEM_SIGNATURE = "Powered by thIAguinho SoluÃ§Ãµes Digitais";
+  const LOGIN_FLOW_VERSION = "jm-driver-login-v15";
   let trackerTimer = null;
   let trackerBusy = false;
 
@@ -94,9 +94,9 @@
     if (point) {
       $(latId).value = String(point.lat);
       $(lngId).value = String(point.lng);
-      addressStatus(statusId, "Endereço validado: " + normalized.label + " (" + point.lat.toFixed(6) + ", " + point.lng.toFixed(6) + ")", "ok");
+      addressStatus(statusId, "EndereÃ§o validado: " + normalized.label + " (" + point.lat.toFixed(6) + ", " + point.lng.toFixed(6) + ")", "ok");
     } else {
-      addressStatus(statusId, "Endereço ainda sem coordenadas. Cole link do mapa com coordenadas ou informe latitude/longitude.", "danger");
+      addressStatus(statusId, "EndereÃ§o ainda sem coordenadas. Cole link do mapa com coordenadas ou informe latitude/longitude.", "danger");
     }
     state.smartRoute = null;
     renderSmartRouteBox();
@@ -122,7 +122,7 @@
     const gm = window.JM.googleMaps;
     if (!gm) return;
     if (!gm.isConfigured(activeMapSettings())) {
-      addressStatus("originGeoStatus", "Modo gratuito ativo: cole link compartilhado do mapa ou coordenadas. Não usa API paga.", "warn");
+      addressStatus("originGeoStatus", "Modo gratuito ativo: cole link compartilhado do mapa ou coordenadas. NÃ£o usa API paga.", "warn");
       return;
     }
     gm.initAutocomplete("callOriginLabel", (addr) => setAddress("origin", addr), activeMapSettings()).catch((err) => addressStatus("originGeoStatus", err.message, "danger"));
@@ -137,7 +137,7 @@
     const labelId = isOrigin ? "callOriginLabel" : "callDestLabel";
     const statusId = isOrigin ? "originGeoStatus" : "destGeoStatus";
     try {
-      if (!gm || !gm.isConfigured(activeMapSettings())) throw new Error("Cole um link de mapa com coordenadas visíveis ou informe latitude/longitude.");
+      if (!gm || !gm.isConfigured(activeMapSettings())) throw new Error("Cole um link de mapa com coordenadas visÃ­veis ou informe latitude/longitude.");
       addressStatus(statusId, "Lendo link/coordenadas...", "muted");
       const addr = await gm.geocode($(labelId).value.trim(), activeMapSettings());
       setAddress(kind, addr);
@@ -149,18 +149,18 @@
   }
 
   function useCurrentLocationAsOrigin() {
-    if (!navigator.geolocation) return toast("Este navegador não liberou geolocalização.", "danger");
-    addressStatus("originGeoStatus", "Capturando localização do aparelho...", "muted");
+    if (!navigator.geolocation) return toast("Este navegador nÃ£o liberou geolocalizaÃ§Ã£o.", "danger");
+    addressStatus("originGeoStatus", "Capturando localizaÃ§Ã£o do aparelho...", "muted");
     navigator.geolocation.getCurrentPosition((pos) => {
       setAddress("origin", {
-        label: "Localização atual do aparelho",
+        label: "LocalizaÃ§Ã£o atual do aparelho",
         coords: { lat: pos.coords.latitude, lng: pos.coords.longitude },
         source: "browser_geolocation",
         resolvedAt: new Date().toISOString()
       });
-      toast("Localização atual aplicada como origem.", "ok");
+      toast("LocalizaÃ§Ã£o atual aplicada como origem.", "ok");
     }, (err) => {
-      addressStatus("originGeoStatus", "Não foi possível obter localização: " + err.message, "danger");
+      addressStatus("originGeoStatus", "NÃ£o foi possÃ­vel obter localizaÃ§Ã£o: " + err.message, "danger");
     }, { enableHighAccuracy: true, timeout: 12000 });
   }
 
@@ -173,18 +173,18 @@
     if (!box) return;
     const route = state.smartRoute;
     if (!route || !route.rankings || !route.rankings.length) {
-      box.innerHTML = "Informe a origem e clique em <b>Traçar rota inteligente</b>. O algoritmo usa posição do tracker, status do veículo, distância e tempo estimado.";
+      box.innerHTML = "Informe a origem e clique em <b>TraÃ§ar rota inteligente</b>. O algoritmo usa posiÃ§Ã£o do tracker, status do veÃ­culo, distÃ¢ncia e tempo estimado.";
       return;
     }
     box.innerHTML = route.rankings.slice(0, 5).map((r, i) => {
       const v = r.vehicle || {};
-      const badge = i === 0 ? '<span class="badge ok">RECOMENDADO</span>' : '<span class="badge info">Opção ' + (i + 1) + '</span>';
+      const badge = i === 0 ? '<span class="badge ok">RECOMENDADO</span>' : '<span class="badge info">OpÃ§Ã£o ' + (i + 1) + '</span>';
       const src = r.toOrigin && r.toOrigin.source === "free_leaflet_haversine" ? "mapa gratuito" : "estimativa";
       return `<div class="smart-route-card">
-        <div>${badge} <b>${esc(v.placa || v.id || "Veículo")}</b> <span class="muted">${esc(v.apelido || v.tipo || "")}</span></div>
-        <div>Até a origem: <b>${esc(r.toOrigin.distanceText || r.kmToOrigin.toFixed(1) + " km")}</b> · <b>${esc(r.toOrigin.durationTrafficText || r.toOrigin.durationText || r.minutesToOrigin + " min")}</b> · fonte: ${esc(src)}</div>
-        ${r.serviceRoute ? `<div>Origem → destino: <b>${esc(r.serviceRoute.distanceText || "")}</b> · <b>${esc(r.serviceRoute.durationTrafficText || r.serviceRoute.durationText || "")}</b></div>` : ""}
-        <div class="actions"><button class="btn primary" type="button" onclick="JM.app.applySmartVehicle('${esc(v.id)}')">Usar este veículo</button>${r.routeUrl ? `<a class="btn" target="_blank" href="${esc(r.routeUrl)}">Abrir rota</a>` : ""}</div>
+        <div>${badge} <b>${esc(v.placa || v.id || "VeÃ­culo")}</b> <span class="muted">${esc(v.apelido || v.tipo || "")}</span></div>
+        <div>AtÃ© a origem: <b>${esc(r.toOrigin.distanceText || r.kmToOrigin.toFixed(1) + " km")}</b> Â· <b>${esc(r.toOrigin.durationTrafficText || r.toOrigin.durationText || r.minutesToOrigin + " min")}</b> Â· fonte: ${esc(src)}</div>
+        ${r.serviceRoute ? `<div>Origem â†’ destino: <b>${esc(r.serviceRoute.distanceText || "")}</b> Â· <b>${esc(r.serviceRoute.durationTrafficText || r.serviceRoute.durationText || "")}</b></div>` : ""}
+        <div class="actions"><button class="btn primary" type="button" onclick="JM.app.applySmartVehicle('${esc(v.id)}')">Usar este veÃ­culo</button>${r.routeUrl ? `<a class="btn" target="_blank" href="${esc(r.routeUrl)}">Abrir rota</a>` : ""}</div>
       </div>`;
     }).join("");
   }
@@ -205,8 +205,8 @@
       destination = addressFromInputs("destination");
     }
     const located = Object.values(state.vehicles || {}).filter((v) => pointFrom(v.location));
-    if (!located.length) return toast("Nenhum veículo tem posição de tracker. Sincronize o tracker no superadmin primeiro.", "danger");
-    $("smartRouteBox").innerHTML = "Calculando melhor veículo e tempo de rota...";
+    if (!located.length) return toast("Nenhum veÃ­culo tem posiÃ§Ã£o de tracker. Sincronize o tracker no superadmin primeiro.", "danger");
+    $("smartRouteBox").innerHTML = "Calculando melhor veÃ­culo e tempo de rota...";
     try {
       const rankings = await gm.rankVehicles(state.vehicles, finalOrigin.coords, destination && destination.coords, activeMapSettings());
       state.smartRoute = { origin: finalOrigin, destination, rankings, calculatedAt: new Date().toISOString() };
@@ -222,7 +222,7 @@
 
   function applySmartVehicle(vehicleId) {
     if ($("callVehicle")) $("callVehicle").value = vehicleId || "";
-    toast("Veículo aplicado ao chamado.", "ok");
+    toast("VeÃ­culo aplicado ao chamado.", "ok");
   }
 
   function openGoogleRouteFromForm() {
@@ -234,7 +234,7 @@
     if (origin && origin.coords) points.push(origin.coords);
     if (destination && destination.coords) points.push(destination.coords);
     const url = window.JM.googleMaps && window.JM.googleMaps.routeUrl(points) || mapsRouteUrl(points);
-    if (!url) return toast("Informe origem/destino e selecione veículo com posição para abrir a rota.", "danger");
+    if (!url) return toast("Informe origem/destino e selecione veÃ­culo com posiÃ§Ã£o para abrir a rota.", "danger");
     window.open(url, "_blank");
   }
 
@@ -269,7 +269,7 @@
 
   function gestorAccessAllowedByConfig(user) {
     const authCfg = cfg.auth || {};
-    // Mantém a trava por lista de e-mails quando ela existir.
+    // MantÃ©m a trava por lista de e-mails quando ela existir.
     // Se a lista estiver vazia/removida, o sistema permite o primeiro gestor criar o perfil.
     const list = (authCfg.adminEmails || []).map((e) => String(e).toLowerCase().trim()).filter(Boolean);
     if (!list.length) return { allowed: true, role: "admin", source: "config-empty" };
@@ -318,7 +318,7 @@
     const current = snap.exists ? { id: user.uid, ...snap.data() } : null;
 
     if (current && current.active === false) {
-      throw new Error("Este usuário está inativo no cadastro da JM Guinchos.");
+      throw new Error("Este usuÃ¡rio estÃ¡ inativo no cadastro da JM Guinchos.");
     }
 
     const baseProfile = {
@@ -336,12 +336,12 @@
     const configAccess = gestorAccessAllowedByConfig(user);
     const registryAccess = configAccess.allowed ? configAccess : await gestorAccessAllowedByRegistry(user);
     if (!registryAccess.allowed) {
-      throw new Error("Este e-mail não está liberado como gestor. Crie/libere o gestor no superadmin antes de acessar o jm.html.");
+      throw new Error("Este e-mail nÃ£o estÃ¡ liberado como gestor. Crie/libere o gestor no superadmin antes de acessar o jm.html.");
     }
 
-    // Correção definitiva do bug: jm.html é painel gestor.
-    // Se o usuário foi criado como driver/motorista por fluxo antigo, repara para admin/financeiro
-    // usando a autorização por e-mail gravada pelo superadmin em managerAccess/{email}.
+    // CorreÃ§Ã£o definitiva do bug: jm.html Ã© painel gestor.
+    // Se o usuÃ¡rio foi criado como driver/motorista por fluxo antigo, repara para admin/financeiro
+    // usando a autorizaÃ§Ã£o por e-mail gravada pelo superadmin em managerAccess/{email}.
     const repairedProfile = {
       ...baseProfile,
       role: registryAccess.role || "admin",
@@ -354,7 +354,7 @@
       return await saveGestorProfile(ref, repairedProfile, current || null);
     } catch (err) {
       if (err && err.code === "permission-denied") {
-        throw new Error("O login foi aceito, mas o Firestore bloqueou a correção do perfil. Publique as novas firestore.rules deste ZIP ou altere o documento users/" + user.uid + " para role: admin.");
+        throw new Error("O login foi aceito, mas o Firestore bloqueou a correÃ§Ã£o do perfil. Publique as novas firestore.rules deste ZIP ou altere o documento users/" + user.uid + " para role: admin.");
       }
       throw err;
     }
@@ -389,8 +389,8 @@
       const unmapped = positions.length - matched;
       const now = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
       const detail = unmapped > 0 ? ` (${unmapped} sem vinculo com placa; ajuste o deviceId no superadmin)` : "";
-      setTrackerStatus(`Tracker RAFA sincronizado: ${positions.length} posição(ões), ${matched} vinculada(s) às ${now}${detail}.`, unmapped > 0 ? "warn" : "ok");
-      if (manual) toast(`${positions.length} posição(ões) sincronizada(s), ${matched} vinculada(s).${detail}`, unmapped > 0 ? "warn" : "ok");
+      setTrackerStatus(`Tracker RAFA sincronizado: ${positions.length} posiÃ§Ã£o(Ãµes), ${matched} vinculada(s) Ã s ${now}${detail}.`, unmapped > 0 ? "warn" : "ok");
+      if (manual) toast(`${positions.length} posiÃ§Ã£o(Ãµes) sincronizada(s), ${matched} vinculada(s).${detail}`, unmapped > 0 ? "warn" : "ok");
       return positions;
     } catch (err) {
       console.error(err);
@@ -413,7 +413,7 @@
       return;
     }
     const polling = Math.max(15000, Number(tracker.pollingMs || 30000));
-    setTrackerStatus("Tracker configurado. Atualização automática a cada " + Math.round(polling / 1000) + "s.", "ok");
+    setTrackerStatus("Tracker configurado. AtualizaÃ§Ã£o automÃ¡tica a cada " + Math.round(polling / 1000) + "s.", "ok");
     syncTrackerNow(false);
     trackerTimer = setInterval(() => syncTrackerNow(false), polling);
   }
@@ -481,7 +481,7 @@
     } catch (err) {
       $("appView").classList.add("hidden");
       $("loginView").classList.remove("hidden");
-      $("loginError").textContent = err && err.message ? err.message : "Acesso de gestor não autorizado.";
+      $("loginError").textContent = err && err.message ? err.message : "Acesso de gestor nÃ£o autorizado.";
       await auth.signOut().catch(() => {});
     }
   });
@@ -499,7 +499,7 @@
   function friendlyAuthError(err) {
     const code = err && err.code || "";
     if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
-      return "Usuário ou senha inválidos. O acesso de gestor deve existir no Firebase Authentication.";
+      return "UsuÃ¡rio ou senha invÃ¡lidos. O acesso de gestor deve existir no Firebase Authentication.";
     }
     if (code === "auth/operation-not-allowed") {
       return "Ative o provedor E-mail/Senha no Firebase Authentication.";
@@ -507,7 +507,7 @@
     if (code === "auth/too-many-requests") {
       return "Muitas tentativas. Aguarde alguns minutos ou redefina a senha no Firebase.";
     }
-    return "Acesso negado: " + (err && err.message || "falha de autenticação");
+    return "Acesso negado: " + (err && err.message || "falha de autenticaÃ§Ã£o");
   }
 
   function renderAll() {
@@ -560,7 +560,7 @@
   function renderCalls() {
     const rows = Object.values(state.calls).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
     if (!rows.length) return $("callsTable").innerHTML = `<p class="muted">Nenhum chamado registrado.</p>`;
-    $("callsTable").innerHTML = `<table><thead><tr><th>Protocolo</th><th>Cliente</th><th>Origem/Destino</th><th>Veículo</th><th>Status</th><th>Ações</th></tr></thead><tbody>` + rows.map((c) => {
+    $("callsTable").innerHTML = `<table><thead><tr><th>Protocolo</th><th>Cliente</th><th>Origem/Destino</th><th>VeÃ­culo</th><th>Status</th><th>AÃ§Ãµes</th></tr></thead><tbody>` + rows.map((c) => {
       const vehicle = state.vehicles[c.vehicleId] || {};
       const driver = state.users[c.driverId] || {};
       const url = c.routeUrl || mapsRouteUrl(c, vehicle);
@@ -569,7 +569,7 @@
       return `<tr>
         <td><b>${esc(c.protocolo || c.id)}</b><br><span class="muted small">${dateTime(c.createdAt)}</span></td>
         <td>${esc(c.cliente || "")}<br><span class="muted small">${esc(c.phone || "")}</span></td>
-        <td><span class="small">${esc(c.originLabel || c.origem && c.origem.label || "-")}</span><br><span class="muted small">→ ${esc(c.destLabel || c.destino && c.destino.label || "-")}</span><br><b>${esc(metric)}</b>${url ? `<br><a class="info small" target="_blank" href="${esc(url)}">Abrir rota no Maps</a>` : ""}</td>
+        <td><span class="small">${esc(c.originLabel || c.origem && c.origem.label || "-")}</span><br><span class="muted small">â†’ ${esc(c.destLabel || c.destino && c.destino.label || "-")}</span><br><b>${esc(metric)}</b>${url ? `<br><a class="info small" target="_blank" href="${esc(url)}">Abrir rota no Maps</a>` : ""}</td>
         <td>${esc(vehicle.placa || "-")}<br><span class="muted small">${esc(driver.nome || driver.email || "Sem motorista")}</span></td>
         <td><span class="badge ${statusClass(c.status)}">${esc(c.status || "Novo")}</span><br><b>${money(c.valor || 0)}</b></td>
         <td class="row-actions"><button class="btn good" onclick="JM.app.setCallStatus('${esc(c.id)}','Despachado')">Despachar</button><button class="btn primary" onclick="JM.app.setCallStatus('${esc(c.id)}','Em Atendimento')">Atender</button><button class="btn" onclick="JM.app.setCallStatus('${esc(c.id)}','Finalizado')">Finalizar</button></td>
@@ -619,14 +619,14 @@
       notes: $("callNotes").value.trim(),
       createdAt: new Date().toISOString(),
       createdBy: state.user.uid,
-      timeline: [{ at: new Date().toISOString(), by: state.profile.nome || state.user.email, text: "Chamado criado com endereço validado e rota inteligente" }]
+      timeline: [{ at: new Date().toISOString(), by: state.profile.nome || state.user.email, text: "Chamado criado com endereÃ§o validado e rota inteligente" }]
     };
     await db.collection("calls").add(data);
     e.target.reset();
     state.addresses = { origin: null, destination: null };
     state.smartRoute = null;
     renderSmartRouteBox();
-    addressStatus("originGeoStatus", "Aguardando endereço lido com coordenadas.", "muted");
+    addressStatus("originGeoStatus", "Aguardando endereÃ§o lido com coordenadas.", "muted");
     addressStatus("destGeoStatus", "Destino opcional, mas recomendado para rota completa.", "muted");
     toast("Chamado registrado com dados de rota.", "ok");
   };
@@ -660,9 +660,9 @@
 
   function renderVehicles() {
     const rows = Object.values(state.vehicles).sort((a, b) => String(a.placa || "").localeCompare(String(b.placa || "")));
-    $("fleetTable").innerHTML = rows.length ? `<table><thead><tr><th>Placa</th><th>Tipo</th><th>Status</th><th>Tracker</th></tr></thead><tbody>` + rows.map((v) => `<tr><td><b>${esc(v.placa || v.id)}</b><br><span class="muted small">${esc(v.apelido || "")}</span></td><td>${esc(v.tipo || "")}</td><td><span class="badge info">${esc(v.status || "")}</span></td><td>${v.location ? `${esc(v.location.lat)}, ${esc(v.location.lng)}` : "Sem posição"}</td></tr>`).join("") + `</tbody></table>` : `<p class="muted">Nenhum veículo.</p>`;
+    $("fleetTable").innerHTML = rows.length ? `<table><thead><tr><th>Placa</th><th>Tipo</th><th>Status</th><th>Tracker</th></tr></thead><tbody>` + rows.map((v) => `<tr><td><b>${esc(v.placa || v.id)}</b><br><span class="muted small">${esc(v.apelido || "")}</span></td><td>${esc(v.tipo || "")}</td><td><span class="badge info">${esc(v.status || "")}</span></td><td>${v.location ? `${esc(v.location.lat)}, ${esc(v.location.lng)}` : "Sem posiÃ§Ã£o"}</td></tr>`).join("") + `</tbody></table>` : `<p class="muted">Nenhum veÃ­culo.</p>`;
 
-    $("vehicleCards").innerHTML = rows.length ? rows.map((v) => `<div class="card col-3"><b>${esc(v.placa || v.id)}</b><p class="muted small">${esc(v.apelido || v.tipo || "")}</p><span class="badge info">${esc(v.status || "")}</span><p class="small">${v.location ? `Lat ${esc(v.location.lat)}<br>Lng ${esc(v.location.lng)}` : "Sem posição do tracker"}</p></div>`).join("") : `<p class="muted">Sem frota cadastrada.</p>`;
+    $("vehicleCards").innerHTML = rows.length ? rows.map((v) => `<div class="card col-3"><b>${esc(v.placa || v.id)}</b><p class="muted small">${esc(v.apelido || v.tipo || "")}</p><span class="badge info">${esc(v.status || "")}</span><p class="small">${v.location ? `Lat ${esc(v.location.lat)}<br>Lng ${esc(v.location.lng)}` : "Sem posiÃ§Ã£o do tracker"}</p></div>`).join("") : `<p class="muted">Sem frota cadastrada.</p>`;
   }
 
   $("vehicleForm").onsubmit = async (e) => {
@@ -679,14 +679,14 @@
       updatedBy: state.user.uid
     }, { merge: true });
     e.target.reset();
-    toast("Veículo salvo.", "ok");
+    toast("VeÃ­culo salvo.", "ok");
   };
 
   function renderTeam() {
     const rows = Object.values(state.users).sort((a, b) => String(a.nome || a.email || "").localeCompare(String(b.nome || b.email || "")));
     $("teamTable").innerHTML = rows.length ? `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Status</th></tr></thead><tbody>` +
       rows.map((u) => `<tr><td><b>${esc(u.nome || "")}</b><br><span class="muted small">${esc(u.uid || u.id)}</span></td><td>${esc(u.email || "")}</td><td><span class="badge info">${esc(u.role || "")}</span></td><td>${u.active === false ? "Inativo" : "Ativo"}</td></tr>`).join("") +
-      `</tbody></table>` : `<p class="muted">Nenhum usuário.</p>`;
+      `</tbody></table>` : `<p class="muted">Nenhum usuÃ¡rio.</p>`;
   }
 
   function roleLabel(role) {
@@ -716,9 +716,9 @@
     const isDriverRole = DRIVER_ROLES.includes(selectedRole);
     const isOfficeRole = roleCanAccessJM(selectedRole);
 
-    if (!isDriverRole && !isOfficeRole) return toast("Perfil inválido.", "danger");
+    if (!isDriverRole && !isOfficeRole) return toast("Perfil invÃ¡lido.", "danger");
     if (isDriverRole && await emailReservedForManager(email)) {
-      return toast("Este e-mail está liberado como gestor/equipe interna. Ele não pode ser salvo como motorista.", "danger");
+      return toast("Este e-mail estÃ¡ liberado como gestor/equipe interna. Ele nÃ£o pode ser salvo como motorista.", "danger");
     }
 
     let uid = uidSafe(email);
@@ -750,12 +750,19 @@
       source: "jm-teamForm"
     };
 
-    const batch = db.batch();
-    batch.set(db.collection("users").doc(uid), payload, { merge: true });
+    await db.collection("users").doc(uid).set(payload, { merge: true });
+    const accessPayload = Object.assign({ createdAt: new Date().toISOString() }, payload);
     if (isOfficeRole) {
-      batch.set(db.collection("managerAccess").doc(email), Object.assign({ createdAt: new Date().toISOString() }, payload), { merge: true });
+      await db.collection("managerAccess").doc(email).set(accessPayload, { merge: true });
     }
-    await batch.commit();
+    if (isDriverRole) {
+      try {
+        await db.collection("driverAccess").doc(email).set(accessPayload, { merge: true });
+      } catch (err) {
+        toast("Motorista salvo, mas driverAccess foi bloqueado. Publique as novas firestore.rules para liberar o primeiro login.", "danger");
+        return;
+      }
+    }
     e.target.reset();
     toast(roleLabel(selectedRole) + " salvo na equipe.", "ok");
   };
@@ -764,7 +771,7 @@
     const myCalls = Object.values(state.calls).filter((c) => isAdmin() || c.driverId === state.user?.uid);
     $("driverCalls").innerHTML = myCalls.length ? myCalls.map((c) => {
       const route = callRoutePoints(c);
-      return `<div class="card" style="margin-bottom:12px"><div class="actions"><div><b>${esc(c.protocolo || c.cliente)}</b><br><span class="muted small">${esc(c.originLabel || "")} → ${esc(c.destLabel || "")}</span></div><span class="badge ${statusClass(c.status)}">${esc(c.status || "")}</span></div><p>${esc(c.notes || "")}</p><p><b>${routeKm(c)} km</b></p>${route.origin && route.destination ? `<a class="btn primary" target="_blank" href="https://www.google.com/maps/dir/${route.origin.lat},${route.origin.lng}/${route.destination.lat},${route.destination.lng}">Abrir rota</a>` : ""}</div>`;
+      return `<div class="card" style="margin-bottom:12px"><div class="actions"><div><b>${esc(c.protocolo || c.cliente)}</b><br><span class="muted small">${esc(c.originLabel || "")} â†’ ${esc(c.destLabel || "")}</span></div><span class="badge ${statusClass(c.status)}">${esc(c.status || "")}</span></div><p>${esc(c.notes || "")}</p><p><b>${routeKm(c)} km</b></p>${route.origin && route.destination ? `<a class="btn primary" target="_blank" href="https://www.google.com/maps/dir/${route.origin.lat},${route.origin.lng}/${route.destination.lat},${route.destination.lng}">Abrir rota</a>` : ""}</div>`;
     }).join("") : `<p class="muted">Nenhum chamado.</p>`;
   }
 
@@ -783,16 +790,16 @@
     };
     await db.collection("expenses").add(data);
     e.target.reset();
-    toast("Despesa enviada para aprovação.", "ok");
+    toast("Despesa enviada para aprovaÃ§Ã£o.", "ok");
   });
 
   function renderFinance() {
     const rows = Object.values(state.transactions).sort((a, b) => String(b.createdAt || b.date || "").localeCompare(String(a.createdAt || a.date || "")));
-    $("financeTable").innerHTML = `<table><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Status</th><th>Valor</th></tr></thead><tbody>` +
+    $("financeTable").innerHTML = `<table><thead><tr><th>Data</th><th>Tipo</th><th>DescriÃ§Ã£o</th><th>Status</th><th>Valor</th></tr></thead><tbody>` +
       rows.map((t) => `<tr><td>${esc(t.date || dateTime(t.createdAt))}</td><td>${esc(t.type || "")}</td><td>${esc(t.description || "")}</td><td>${esc(t.status || "")}</td><td><b>${money(t.amount || 0)}</b></td></tr>`).join("") +
       `</tbody></table>${reportSignature()}`;
     const pending = Object.values(state.expenses).filter((e) => e.status === "pendente");
-    $("expenseApproval").innerHTML = `<table><thead><tr><th>Motorista</th><th>Tipo</th><th>Valor</th><th>Obs</th><th>Ações</th></tr></thead><tbody>` +
+    $("expenseApproval").innerHTML = `<table><thead><tr><th>Motorista</th><th>Tipo</th><th>Valor</th><th>Obs</th><th>AÃ§Ãµes</th></tr></thead><tbody>` +
       pending.map((e) => `<tr>
         <td>${esc(e.driverName || e.driverId)}</td><td>${esc(e.type || "")}</td><td><b>${money(e.amount || 0)}</b></td>
         <td>${esc(e.notes || "")}${e.photoUrl ? `<br><a class="info" href="${esc(e.photoUrl)}" target="_blank">Comprovante</a>` : ""}</td>
@@ -802,7 +809,7 @@
 
   $("financeForm").onsubmit = async (e) => {
     e.preventDefault();
-    if (!isAdmin()) return toast("Somente gestor/financeiro pode lançar.", "danger");
+    if (!isAdmin()) return toast("Somente gestor/financeiro pode lanÃ§ar.", "danger");
     await db.collection("transactions").add({
       type: $("finType").value,
       date: $("finDate").value,
@@ -814,7 +821,7 @@
     });
     e.target.reset();
     $("finDate").value = todayInput();
-    toast("Lançamento salvo.", "ok");
+    toast("LanÃ§amento salvo.", "ok");
   };
 
   async function approveExpense(id) {
@@ -833,7 +840,7 @@
       createdAt: new Date().toISOString(),
       createdBy: state.user.uid
     });
-    toast("Despesa aprovada e lançada no financeiro.", "ok");
+    toast("Despesa aprovada e lanÃ§ada no financeiro.", "ok");
   }
 
   async function rejectExpense(id) {

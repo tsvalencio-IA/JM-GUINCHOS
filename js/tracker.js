@@ -13,7 +13,6 @@
     const headers = { "Accept": "application/json" };
     if (config && config.token) {
       headers[config.tokenHeader || "Authorization"] = String(config.tokenPrefix == null ? "Bearer " : config.tokenPrefix) + config.token;
-      headers["X-Tracker-Token"] = config.token;
     }
     return headers;
   }

@@ -1,37 +1,84 @@
-(function () {
+﻿(function () {
   "use strict";
 
   const { $, esc, money, parseMoney, dateTime, toast, statusClass, routeKm, mapsRouteUrl } = window.JM.utils;
   const { auth, db, arrayUnion } = window.JM.firebase;
   const cfg = window.JM_CONFIG || {};
-  const DRIVER_FLOW_VERSION = "jm-professional-v13";
+  const DRIVER_FLOW_VERSION = "jm-driver-login-v15";
   const state = { user: null, profile: null, calls: {}, vehicles: {}, expenses: {}, settings: {} };
   const unsubscribers = [];
 
   function friendlyAuthError(err) {
     const code = err && err.code || "";
-    if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "Usuário ou senha inválidos.";
-    return "Acesso negado: " + (err && err.message || "falha de autenticação");
+    if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "UsuÃ¡rio ou senha invÃ¡lidos.";
+    return "Acesso negado: " + (err && err.message || "falha de autenticaÃ§Ã£o");
   }
 
   function stopListeners() {
     unsubscribers.splice(0).forEach((fn) => fn());
   }
 
+  function normalizedRole(role) {
+    return String(role || "").toLowerCase().trim();
+  }
+
+  function isDriverRole(role) {
+    return ["driver", "motorista"].includes(normalizedRole(role));
+  }
+
+  function normalizeDriverProfile(user, data) {
+    const profile = Object.assign({}, data || {}, {
+      uid: user.uid,
+      email: String(user.email || "").toLowerCase(),
+      role: normalizedRole(data && data.role || "driver") || "driver",
+      active: data && data.active !== false
+    });
+    if (!isDriverRole(profile.role)) {
+      throw new Error("Este login existe, mas nao esta marcado como motorista.");
+    }
+    if (profile.active === false) {
+      throw new Error("Seu usuario nao esta ativo no cadastro da JM Guinchos.");
+    }
+    return profile;
+  }
+
+  async function repairDriverFromAccess(user) {
+    const email = String(user.email || "").toLowerCase().trim();
+    if (!email) return null;
+    const permitSnap = await db.collection("driverAccess").doc(email).get();
+    if (!permitSnap.exists) return null;
+    const permit = permitSnap.data() || {};
+    const profile = normalizeDriverProfile(user, {
+      nome: permit.nome || user.displayName || email.split("@")[0],
+      role: permit.role || "driver",
+      active: permit.active !== false,
+      source: "motorista-driverAccessRepair"
+    });
+    const payload = Object.assign({}, permit, profile, {
+      repairedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    await db.collection("users").doc(user.uid).set(payload, { merge: true });
+    return { id: user.uid, ...payload };
+  }
+
   async function loadProfile(user) {
     const ref = db.collection("users").doc(user.uid);
     const snap = await ref.get();
     if (snap.exists) {
-      if (snap.data().active === false) throw new Error("Seu usuário não está ativo no cadastro da JM Guinchos.");
-      return { id: user.uid, ...snap.data() };
+      return { id: user.uid, ...normalizeDriverProfile(user, snap.data()) };
+    }
+
+    const repairedByAccess = await repairDriverFromAccess(user);
+    if (repairedByAccess) {
+      return repairedByAccess;
     }
 
     // Reparo para e-mail criado no Auth antes de existir users/{uid}.
-    const byEmail = await db.collection("users").where("email", "==", String(user.email || "").toLowerCase()).limit(1).get();
+    const byEmail = await db.collection("users").where("email", "==", String(user.email || "").toLowerCase().trim()).limit(1).get();
     if (!byEmail.empty) {
       const doc = byEmail.docs[0];
-      const data = doc.data() || {};
-      if (data.active === false) throw new Error("Seu usuário não está ativo no cadastro da JM Guinchos.");
+      const data = normalizeDriverProfile(user, doc.data() || {});
       const repaired = Object.assign({}, data, {
         uid: user.uid,
         email: user.email,
@@ -40,7 +87,7 @@
       await ref.set(repaired, { merge: true });
       return { id: user.uid, ...repaired };
     }
-    throw new Error("Seu usuário ainda não está cadastrado na equipe da JM Guinchos.");
+    throw new Error("Seu motorista existe no Auth, mas nao esta liberado em driverAccess. Recrie/atualize o motorista no jm.html depois de publicar as regras novas.");
   }
 
   function startListeners() {
@@ -126,7 +173,7 @@
           <button class="btn" onclick="JM.motorista.setStatus('${esc(call.id)}','Finalizado')">Finalizar</button>
         </div>
       </div>`;
-    }).join("") + `<div class="report-signature">Powered by thIAguinho Soluções Digitais</div>` : `<p class="muted">Nenhum chamado vinculado ao seu usuário.</p>`;
+    }).join("") + `<div class="report-signature">Powered by thIAguinho SoluÃ§Ãµes Digitais</div>` : `<p class="muted">Nenhum chamado vinculado ao seu usuÃ¡rio.</p>`;
   }
 
   function renderExpenseSelects() {
@@ -162,7 +209,7 @@
     e.preventDefault();
     const photo = $("driverExpensePhoto").files && $("driverExpensePhoto").files[0];
     let photoUrl = "";
-    try { photoUrl = await uploadToCloudinary(photo); } catch (err) { toast("Foto não enviada: " + err.message, "danger"); }
+    try { photoUrl = await uploadToCloudinary(photo); } catch (err) { toast("Foto nÃ£o enviada: " + err.message, "danger"); }
     await db.collection("expenses").add({
       callId: $("driverExpenseCall").value,
       vehicleId: $("driverExpenseVehicle").value,
@@ -177,7 +224,7 @@
       createdBy: state.user.uid
     });
     e.target.reset();
-    toast("Despesa enviada para aprovação.", "ok");
+    toast("Despesa enviada para aprovaÃ§Ã£o.", "ok");
   };
 
   window.JM = window.JM || {};

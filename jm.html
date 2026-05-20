@@ -1,13 +1,13 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#07111f">
   <title>JM Guinchos - Gestor</title>
-  <link rel="manifest" href="manifest.json?v=jm-professional-v13">
+  <link rel="manifest" href="manifest.json?v=jm-driver-login-v15">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/style.css?v=jm-professional-v13">
+  <link rel="stylesheet" href="css/style.css?v=jm-driver-login-v15">
 </head>
 <body>
   <section id="loginView" class="login">
@@ -16,7 +16,7 @@
         <div class="brand-mark">JM</div>
         <div>
           <h1>JM Guinchos</h1>
-          <p class="muted small">Painel gestor da operação</p>
+          <p class="muted small">Painel gestor da operaÃ§Ã£o</p>
         </div>
       </div>
       <label for="loginEmail">E-mail gestor</label>
@@ -37,7 +37,7 @@
           <div class="brand-mark">JM</div>
           <div>
             <div class="sidebar-title">JM GUINCHOS</div>
-            <div class="sidebar-sub">gestão operacional</div>
+            <div class="sidebar-sub">gestÃ£o operacional</div>
           </div>
         </div>
       </div>
@@ -61,7 +61,7 @@
           <button class="btn mobile-top" id="menuBtn">Menu</button>
           <div>
             <h2 id="pageTitle" style="margin:0">Dashboard</h2>
-            <div class="muted small" id="trackerStatus">Tracker RAFA aguardando sincronização</div>
+            <div class="muted small" id="trackerStatus">Tracker RAFA aguardando sincronizaÃ§Ã£o</div>
           </div>
         </div>
       </header>
@@ -70,7 +70,7 @@
         <section id="view-dashboard" class="view active">
           <div class="grid">
             <div class="card kpi col-3"><span>Chamados ativos</span><strong id="kpiActiveCalls">0</strong></div>
-            <div class="card kpi col-3"><span>Receita do mês</span><strong id="kpiRevenue">R$ 0,00</strong></div>
+            <div class="card kpi col-3"><span>Receita do mÃªs</span><strong id="kpiRevenue">R$ 0,00</strong></div>
             <div class="card kpi col-3"><span>Despesas pendentes</span><strong id="kpiExpenses">R$ 0,00</strong></div>
             <div class="card kpi col-3"><span>Frota online</span><strong id="kpiOnline">0</strong></div>
             <div class="panel col-7">
@@ -78,7 +78,7 @@
               <div id="dashboardMap" class="map"></div>
             </div>
             <div class="panel col-5">
-              <h2>Últimos eventos</h2>
+              <h2>Ãšltimos eventos</h2>
               <div id="timelineBox" class="timeline"></div>
             </div>
           </div>
@@ -91,21 +91,21 @@
               <form id="callForm" class="form-grid">
                 <div><label>Cliente</label><input id="callClient" required></div>
                 <div><label>WhatsApp</label><input id="callPhone" inputmode="tel"></div>
-                <div><label>Serviço</label><select id="callType"><option>Guincho</option><option>Munck</option><option>Socorro</option><option>Remoção</option></select></div>
+                <div><label>ServiÃ§o</label><select id="callType"><option>Guincho</option><option>Munck</option><option>Socorro</option><option>RemoÃ§Ã£o</option></select></div>
                 <div><label>Valor previsto</label><input id="callPrice" inputmode="decimal" placeholder="0,00"></div>
-                <div><label>Veículo</label><select id="callVehicle"></select></div>
+                <div><label>VeÃ­culo</label><select id="callVehicle"></select></div>
                 <div><label>Motorista</label><select id="callDriver"></select></div>
                 <div class="wide geo-block">
-                  <label>Origem / local do veículo</label>
+                  <label>Origem / local do veÃ­culo</label>
                   <input id="callOriginLabel" placeholder="Cole link do Google Maps/Waze ou -20.851076,-49.398946">
                   <div class="geo-actions">
                     <button class="btn" id="btnGeocodeOrigin" type="button">Ler origem do link/coordenada</button>
-                    <button class="btn" id="btnUseCurrentLocation" type="button">Usar localização atual</button>
+                    <button class="btn" id="btnUseCurrentLocation" type="button">Usar localizaÃ§Ã£o atual</button>
                   </div>
                   <div id="originGeoStatus" class="small muted geo-status">Aguardando link do mapa ou coordenadas.</div>
                 </div>
-                <div><label>Origem lat</label><input id="callOriginLat" inputmode="decimal" placeholder="automático"></div>
-                <div><label>Origem lng</label><input id="callOriginLng" inputmode="decimal" placeholder="automático"></div>
+                <div><label>Origem lat</label><input id="callOriginLat" inputmode="decimal" placeholder="automÃ¡tico"></div>
+                <div><label>Origem lng</label><input id="callOriginLng" inputmode="decimal" placeholder="automÃ¡tico"></div>
                 <div class="wide geo-block">
                   <label>Destino</label>
                   <input id="callDestLabel" placeholder="Cole link do destino ou -20.851076,-49.398946">
@@ -114,22 +114,22 @@
                   </div>
                   <div id="destGeoStatus" class="small muted geo-status">Destino opcional; pode ser link compartilhado ou coordenadas.</div>
                 </div>
-                <div><label>Destino lat</label><input id="callDestLat" inputmode="decimal" placeholder="automático"></div>
-                <div><label>Destino lng</label><input id="callDestLng" inputmode="decimal" placeholder="automático"></div>
+                <div><label>Destino lat</label><input id="callDestLat" inputmode="decimal" placeholder="automÃ¡tico"></div>
+                <div><label>Destino lng</label><input id="callDestLng" inputmode="decimal" placeholder="automÃ¡tico"></div>
                 <div class="wide route-planner">
                   <div class="actions" style="justify-content:space-between;align-items:center">
                     <div>
                       <b>Rota inteligente</b>
-                      <div class="muted small">Calcula o melhor veículo pela posição real do Tracker + link/coordenadas, sem API paga.</div>
+                      <div class="muted small">Calcula o melhor veÃ­culo pela posiÃ§Ã£o real do Tracker + link/coordenadas, sem API paga.</div>
                     </div>
                     <div class="actions">
-                      <button class="btn good" id="btnSmartRoute" type="button">Traçar rota inteligente</button>
+                      <button class="btn good" id="btnSmartRoute" type="button">TraÃ§ar rota inteligente</button>
                       <button class="btn" id="btnOpenGoogleRoute" type="button">Abrir rota no Maps</button>
                     </div>
                   </div>
-                  <div id="smartRouteBox" class="smart-route-box small muted">Modo gratuito: use link compartilhado do mapa ou coordenadas. O algoritmo usa Tracker RAFA + distância estimada no Leaflet/OpenStreetMap.</div>
+                  <div id="smartRouteBox" class="smart-route-box small muted">Modo gratuito: use link compartilhado do mapa ou coordenadas. O algoritmo usa Tracker RAFA + distÃ¢ncia estimada no Leaflet/OpenStreetMap.</div>
                 </div>
-                <div class="wide"><label>Observações</label><textarea id="callNotes"></textarea></div>
+                <div class="wide"><label>ObservaÃ§Ãµes</label><textarea id="callNotes"></textarea></div>
                 <button class="btn primary wide" type="submit">Registrar chamado</button>
               </form>
             </div>
@@ -144,7 +144,7 @@
           <div class="grid">
             <div class="panel col-12">
               <h2>Rastreamento e rotas</h2>
-              <p class="muted small">Mapa gratuito Leaflet/OpenStreetMap. O sistema usa o Tracker RAFA para posicionar a frota e calcular o veículo mais próximo.</p>
+              <p class="muted small">Mapa gratuito Leaflet/OpenStreetMap. O sistema usa o Tracker RAFA para posicionar a frota e calcular o veÃ­culo mais prÃ³ximo.</p>
               <div class="actions" style="margin-bottom:10px"><button class="btn primary" id="btnSyncTrackerNow" type="button">Atualizar Tracker agora</button><a class="btn" target="_blank" href="https://gps2.rafacarrastreadores.com.br">Abrir plataforma RAFA</a></div>
               <div id="fleetMap" class="map"></div>
             </div>
@@ -158,11 +158,11 @@
         <section id="view-financeiro" class="view">
           <div class="grid">
             <div class="panel col-4">
-              <h2>Lançamento financeiro</h2>
+              <h2>LanÃ§amento financeiro</h2>
               <form id="financeForm" class="form-grid">
-                <div><label>Tipo</label><select id="finType"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div>
+                <div><label>Tipo</label><select id="finType"><option value="entrada">Entrada</option><option value="saida">SaÃ­da</option></select></div>
                 <div><label>Data</label><input id="finDate" type="date"></div>
-                <div class="wide"><label>Descrição</label><input id="finDesc" required></div>
+                <div class="wide"><label>DescriÃ§Ã£o</label><input id="finDesc" required></div>
                 <div><label>Valor</label><input id="finAmount" inputmode="decimal" required></div>
                 <div><label>Status</label><select id="finStatus"><option>Recebido</option><option>A receber</option><option>Pago</option><option>Pendente</option></select></div>
                 <button class="btn primary wide" type="submit">Salvar financeiro</button>
@@ -180,13 +180,13 @@
         <section id="view-frota" class="view">
           <div class="grid">
             <div class="panel col-4">
-              <h2>Veículo</h2>
+              <h2>VeÃ­culo</h2>
               <form id="vehicleForm" class="form-grid">
                 <div><label>Placa</label><input id="vehiclePlate" maxlength="8" required></div>
                 <div><label>Apelido</label><input id="vehicleAlias"></div>
                 <div><label>Tipo</label><input id="vehicleType"></div>
-                <div><label>Status</label><select id="vehicleStatus"><option>Disponível</option><option>Em atendimento</option><option>Manutenção</option><option>Indisponível</option></select></div>
-                <button class="btn primary wide" type="submit">Salvar veículo</button>
+                <div><label>Status</label><select id="vehicleStatus"><option>DisponÃ­vel</option><option>Em atendimento</option><option>ManutenÃ§Ã£o</option><option>IndisponÃ­vel</option></select></div>
+                <button class="btn primary wide" type="submit">Salvar veÃ­culo</button>
               </form>
             </div>
             <div class="panel col-8">
@@ -203,9 +203,9 @@
               <form id="teamForm" class="form-grid">
                 <div class="wide"><label>Nome</label><input id="teamName" required></div>
                 <div class="wide"><label>E-mail</label><input id="teamEmail" type="email" required></div>
-                <div><label>Senha inicial</label><input id="teamPass" type="password" autocomplete="new-password" placeholder="mínimo 6 caracteres"></div>
+                <div><label>Senha inicial</label><input id="teamPass" type="password" autocomplete="new-password" placeholder="mÃ­nimo 6 caracteres"></div>
                 <div><label>Perfil</label><select id="teamRole"><option value="driver">Motorista</option><option value="atendente">Atendente</option><option value="gerente">Gerente</option><option value="admin">Gestor/Admin</option><option value="finance">Financeiro</option></select></div>
-                <div><label>Ativo</label><select id="teamActive"><option value="true">Sim</option><option value="false">Não</option></select></div>
+                <div><label>Ativo</label><select id="teamActive"><option value="true">Sim</option><option value="false">NÃ£o</option></select></div>
                 <button class="btn primary wide" type="submit">Criar/atualizar equipe</button>
               </form>
             </div>
@@ -219,18 +219,18 @@
     </main>
   </section>
 
-  <footer class="signature-footer">Powered by thIAguinho Soluções Digitais</footer>
+  <footer class="signature-footer">Powered by thIAguinho SoluÃ§Ãµes Digitais</footer>
   <div id="toast" class="toast"></div>
 
-  <script src="js/config.firebase.js?v=jm-professional-v13"></script>
+  <script src="js/config.firebase.js?v=jm-driver-login-v15"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="js/utils.js?v=jm-professional-v13"></script>
-  <script src="js/firebase.js?v=jm-professional-v13"></script>
-  <script src="js/tracker.js?v=jm-professional-v13"></script>
-  <script src="js/google-maps.js?v=jm-professional-v13"></script>
-  <script src="js/mapa.js?v=jm-professional-v13"></script>
-  <script src="js/app.js?v=jm-professional-v13"></script>
+  <script src="js/utils.js?v=jm-driver-login-v15"></script>
+  <script src="js/firebase.js?v=jm-driver-login-v15"></script>
+  <script src="js/tracker.js?v=jm-driver-login-v15"></script>
+  <script src="js/google-maps.js?v=jm-driver-login-v15"></script>
+  <script src="js/mapa.js?v=jm-driver-login-v15"></script>
+  <script src="js/app.js?v=jm-driver-login-v15"></script>
 </body>
 </html>

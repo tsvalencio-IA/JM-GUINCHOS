@@ -259,6 +259,10 @@
     return ["admin", "gestor", "gerente", "auxiliar", "atendente", "finance", "manager"].includes(normalizedRole(role));
   }
 
+  function isDriverRole(role) {
+    return ["driver", "motorista"].includes(normalizedRole(role));
+  }
+
   function roleLabel(role) {
     const labels = {
       admin: "Gestor/Admin",
@@ -294,6 +298,9 @@
     try {
       if (isOfficeRole(role)) {
         await db.collection("managerAccess").doc(email).set(Object.assign({ createdAt: new Date().toISOString() }, userPayload), { merge: true });
+      }
+      if (isDriverRole(role)) {
+        await db.collection("driverAccess").doc(email).set(Object.assign({ createdAt: new Date().toISOString() }, userPayload), { merge: true });
       }
 
       const oldUsers = await db.collection("users").where("email", "==", email).get();

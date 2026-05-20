@@ -1,4 +1,4 @@
-const CACHE_NAME = "jm-guinchos-v13-professional";
+﻿const CACHE_NAME = "jm-guinchos-v15-driver-login";
 const ASSETS = [
   "./",
   "./index.html",
@@ -39,6 +39,8 @@ function isHtmlOrCode(request) {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.origin !== self.location.origin) return;
 
   if (isHtmlOrCode(event.request)) {
     event.respondWith(
@@ -54,10 +56,13 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-      const copy = response.clone();
-      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => null);
-      return response;
-    }).catch(() => cached))
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+      return fetch(event.request).then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => null);
+        return response;
+      });
+    })
   );
 });

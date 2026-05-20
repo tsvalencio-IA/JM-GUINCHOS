@@ -1,4 +1,4 @@
-# JM Guinchos v13 - gestao, equipe e Trackar/Traccar
+﻿# JM Guinchos v13 - gestao, equipe e Trackar/Traccar
 
 Esta versao mantem o sistema em frontend estatico/GitHub Pages, mas separa melhor os papeis:
 
@@ -13,7 +13,7 @@ Esta versao mantem o sistema em frontend estatico/GitHub Pages, mas separa melho
 1. Suba todos os arquivos desta pasta.
 2. Publique o conteudo de `firestore.rules` no Firebase Console.
 3. Ative login Email/Senha no Firebase Authentication.
-4. Abra `superadmin.html?v=jm-professional-v13`.
+4. Abra `superadmin.html?v=jm-driver-login-v15`.
 5. Entre/crie o primeiro superadmin com `tsvalencio@gmail.com`.
 6. Em Tracker, salve:
    - plataforma: `https://gps2.rafacarrastreadores.com.br`
@@ -24,7 +24,7 @@ Esta versao mantem o sistema em frontend estatico/GitHub Pages, mas separa melho
    - polling: `30000` ou maior
 7. Em Rastreadores da frota, informe o `deviceId` ou `uniqueId` real do Traccar para a placa correta.
 8. Clique em `Criar base JM` e depois em `Sincronizar Tracker`.
-9. Abra `jm.html?v=jm-professional-v13` e entre com `jm@jm.com`.
+9. Abra `jm.html?v=jm-driver-login-v15` e entre com `jm@jm.com`.
 
 ## Device Trackar validado
 

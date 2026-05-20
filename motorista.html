@@ -1,13 +1,13 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#07111f">
   <title>JM Guinchos - Motorista</title>
-  <link rel="manifest" href="manifest.json?v=jm-professional-v13">
+  <link rel="manifest" href="manifest.json?v=jm-driver-login-v15">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/style.css?v=jm-professional-v13">
+  <link rel="stylesheet" href="css/style.css?v=jm-driver-login-v15">
 </head>
 <body>
   <section id="driverLoginView" class="login">
@@ -48,37 +48,37 @@
           <div id="driverCallsBox"></div>
         </section>
         <section class="panel col-5">
-          <h2>Lançar despesa</h2>
+          <h2>LanÃ§ar despesa</h2>
           <form id="driverExpenseForm" class="form-grid">
             <div class="wide"><label>Chamado</label><select id="driverExpenseCall"></select></div>
-            <div><label>Veículo</label><select id="driverExpenseVehicle"></select></div>
-            <div><label>Tipo</label><select id="driverExpenseType"><option>Combustível</option><option>Pedágio</option><option>Alimentação</option><option>Estacionamento</option><option>Manutenção</option><option>Outros</option></select></div>
+            <div><label>VeÃ­culo</label><select id="driverExpenseVehicle"></select></div>
+            <div><label>Tipo</label><select id="driverExpenseType"><option>CombustÃ­vel</option><option>PedÃ¡gio</option><option>AlimentaÃ§Ã£o</option><option>Estacionamento</option><option>ManutenÃ§Ã£o</option><option>Outros</option></select></div>
             <div><label>Valor</label><input id="driverExpenseAmount" inputmode="decimal" required></div>
             <div class="wide"><label>Comprovante/foto</label><input id="driverExpensePhoto" type="file" accept="image/*" capture="environment"></div>
-            <div class="wide"><label>Observação</label><textarea id="driverExpenseNotes"></textarea></div>
-            <button class="btn good wide" type="submit">Enviar relatório</button>
+            <div class="wide"><label>ObservaÃ§Ã£o</label><textarea id="driverExpenseNotes"></textarea></div>
+            <button class="btn good wide" type="submit">Enviar relatÃ³rio</button>
           </form>
         </section>
         <section class="panel col-12">
           <h2>Mapa dos meus atendimentos</h2>
-          <p class="muted small">O motorista visualiza somente os próprios chamados. Configurações técnicas não aparecem neste painel.</p>
+          <p class="muted small">O motorista visualiza somente os prÃ³prios chamados. ConfiguraÃ§Ãµes tÃ©cnicas nÃ£o aparecem neste painel.</p>
           <div id="driverMap" class="map"></div>
         </section>
       </div>
     </main>
   </section>
 
-  <footer class="signature-footer">Powered by thIAguinho Soluções Digitais</footer>
+  <footer class="signature-footer">Powered by thIAguinho SoluÃ§Ãµes Digitais</footer>
   <div id="toast" class="toast"></div>
 
-  <script src="js/config.firebase.js?v=jm-professional-v13"></script>
+  <script src="js/config.firebase.js?v=jm-driver-login-v15"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="js/utils.js?v=jm-professional-v13"></script>
-  <script src="js/firebase.js?v=jm-professional-v13"></script>
-  <script src="js/google-maps.js?v=jm-professional-v13"></script>
-  <script src="js/mapa.js?v=jm-professional-v13"></script>
-  <script src="js/motorista.js?v=jm-professional-v13"></script>
+  <script src="js/utils.js?v=jm-driver-login-v15"></script>
+  <script src="js/firebase.js?v=jm-driver-login-v15"></script>
+  <script src="js/google-maps.js?v=jm-driver-login-v15"></script>
+  <script src="js/mapa.js?v=jm-driver-login-v15"></script>
+  <script src="js/motorista.js?v=jm-driver-login-v15"></script>
 </body>
 </html>
