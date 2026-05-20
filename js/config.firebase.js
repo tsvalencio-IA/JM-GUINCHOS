@@ -33,12 +33,14 @@ window.JM_CONFIG = {
     autoRepairGestorLogin: true
   },
   tracker: {
-    platformUrl: "https://gps2.rafacarrastreadores.com.br",
-    endpoint: "",
-    token: "",
-    tokenHeader: "Authorization",
-    tokenPrefix: "Bearer ",
-    pollingMs: 30000,
+  platformUrl: "https://gps2.rafacarrastreadores.com.br",
+  endpoint: "https://gps2.rafacarrastreadores.com.br/api",
+  socketUrl: "wss://gps2.rafacarrastreadores.com.br/api/socket",
+  token: "RjBEAiBIfZbqwxwwx4sflEv1MKhRihZ9u6D3zDUmThyl4Eli1QIgNwK-0XsQUZqgb9YZzZLVrU1bVYVQbri_07sv290x9LV7InUiOjI1LCJlIjoiMjAyNi0xMS0xMFQwMDozODoxMy4zNDkrMDA6MDAifQ",
+  tokenHeader: "Authorization",
+  tokenPrefix: "Bearer ",
+  pollingMs: 30000,
+}
     vehicles: {
       FHA4B30: {
         placa: "FHA4B30",
